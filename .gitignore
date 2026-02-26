@@ -1,0 +1,34 @@
+# Odin Compiler Output
+*.o
+*.a
+*.so
+bin/
+build/
+out/
+*.exe
+
+# Game Runtime Logs
+game.log
+crash.log
+debug.log
+
+# Dungeon Export Files
+# NOTE: Decide whether .dun files are tracked assets (commit them)
+# or generated/temporary (gitignore them). Uncomment below if ignoring:
+# *.dun
+
+# Editor & IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Raylib (if building locally)
+# Usually installed globally or via package manager on Linux
