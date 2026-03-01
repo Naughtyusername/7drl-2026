@@ -7,6 +7,9 @@ build/
 out/
 *.exe
 
+#Research docs
+docs/
+
 # Game Runtime Logs
 game.log
 crash.log
