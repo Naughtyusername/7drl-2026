@@ -1,7 +1,6 @@
 package sdrl
 
 import "core:fmt"
-import _ "core:time"
 import rl "vendor:raylib"
 
 draw_map :: proc(game: ^Game) {
@@ -28,7 +27,7 @@ draw_map :: proc(game: ^Game) {
 			}
 
 			base_color: rl.Color
-			switch game.tiles[world_y][world_x] {
+            #partial switch game.tiles[world_y][world_x] {
 			case .Wall:
 				base_color = COLOR_WALL
 				if game.visible[world_y][world_x] {
@@ -43,7 +42,9 @@ draw_map :: proc(game: ^Game) {
 				base_color = COLOR_WATER
 			case .Floor:
 				base_color = COLOR_FLOOR
-			}
+            case .Stairs_Down:
+                // TODO
+		    }
 
 			if game.visible[world_y][world_x] {
 				light_color := game.light_map[world_y][world_x]
@@ -60,7 +61,9 @@ draw_map :: proc(game: ^Game) {
 
 			rl.DrawRectangleRec(rect, base_color)
 
-			switch game.tiles[world_y][world_x] {
+            // TODO possibly adjust these switches to handle all cases (create a default)
+            // for now partial switch is ok tho.
+			#partial switch game.tiles[world_y][world_x] {
 			case .Floor:
 				if game.visible[world_y][world_x] {
 					light_color := game.light_map[world_y][world_x]
@@ -160,7 +163,7 @@ draw_debug_info :: proc(game: ^Game) {
 	// TODO: verify time tracks correctly — player acts at 5 TU, 20 moves per turn increment
 	rl.DrawText(rl.TextFormat("Time: %d", game.current_time), 10, y, font_size, rl.WHITE)
 	y += spacing
-	rl.DrawText(rl.TextFormat("Actors: %d", len(game.actors)), 10, 65, font_size, rl.WHITE)
+	rl.DrawText(rl.TextFormat("Actors: %d", len(game.actors)), 10, y, font_size, rl.WHITE)
 	y += spacing
 	rl.DrawText(
 		rl.TextFormat("Scheduled: %d", len(game.scheduler.actors)),
@@ -196,7 +199,7 @@ render_message_overlay :: proc(game: ^Game) {
 		if alpha > 255 {alpha = 255}
 
 		y := i32(SCREEN_H) - 25 - i32((count - 1 - line) * 20)
-		x := i32(16) - 16 // TODO: revisit x offset
+		x : i32 = 0
 
 		rl.DrawRectangle(0, y - 2, SCREEN_W, 20, rl.Color{0, 0, 0, u8(alpha / 2)})
 		rl.DrawText(

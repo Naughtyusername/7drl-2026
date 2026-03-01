@@ -1,6 +1,5 @@
 package sdrl
 
-import _ "core:fmt"
 import "core:math"
 
 // ===============================================================================================================================================================
@@ -146,18 +145,10 @@ compute_fov :: proc(game: ^Game, origin_x, origin_y, radius: int) {
 	visited := make(map[[2]int]bool)
 	defer delete(visited)
 
-		for octant in 0 ..< 8 {
-			cast_light(game, origin_x, origin_y, radius, octant, 1, 1.0, 0.0, &visited)
-
-			when ODIN_DEBUG {
-				count := 0
-				for _, _ in visited {
-						count += 1
-					if count >= 10 {break}
-				}
-			}
-		}
+	for octant in 0 ..< 8 {
+		cast_light(game, origin_x, origin_y, radius, octant, 1, 1.0, 0.0, &visited)
 	}
+}
 
 // ===============================================================================================================================================================
 // Bresenham line algorithm

@@ -32,6 +32,8 @@ Tile :: enum {
 	Floor,
 	Wall,
 	Water,
+    Stairs_Down,
+    Tile_Max,
 }
 
 Action :: enum {
@@ -361,7 +363,7 @@ log_game :: proc(game: ^Game, level: Log_Level, message: string) {
 		case .WARN:
 			prefix = "[WARN ]"
 		case .ERROR:
-			prefix = "[ ERROR]"
+			prefix = "[ERROR]"
 		}
 		fmt.printf("%s %s\n", prefix, message)
 	}

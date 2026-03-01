@@ -10,6 +10,7 @@ sdrl
 
 #Research docs
 docs/
+logs/
 
 # Game Runtime Logs
 game.log

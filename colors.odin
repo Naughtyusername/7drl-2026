@@ -2,6 +2,9 @@ package sdrl
 
 import rl "vendor:raylib"
 
+// TODO change the colors from the current bland basics to the vibrant
+// planned ones. those should be fun for the 7drl.
+
 // ===== STANDARD & DEFAULT COLORS =====
 LIGHT_MAX_STANDARD :: rl.Color{255, 147, 41, 255} // Warm torch glow
 LIGHT_NONE :: rl.Color{0, 0, 0, 255} // Darkness
