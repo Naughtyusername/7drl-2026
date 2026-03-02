@@ -137,6 +137,7 @@ cast_light :: proc(
 // ===============================================================================================================================================================
 // Bresenham line-of-sight — separate from shadowcasting, cheap for enemy FOV etc.
 // ===============================================================================================================================================================
+// call get_fov_radii(game) fov_r lantern_r anytime this func is called
 compute_fov :: proc(game: ^Game, origin_x, origin_y, fov_radius, lantern_radius: int) {
     // Clear both arrays
     for y in 0 ..< game.map_height {

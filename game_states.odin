@@ -80,7 +80,8 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			game.map_width,
 			game.map_height,
 		)
-		compute_fov(game, get_player(game).x, get_player(game).y, fov_radius, MAX_LANTERN_RADIUS)
+        fov_r, lantern_r := get_fov_radii(game)
+		compute_fov(game, get_player(game).x, get_player(game).y, fov_r, lantern_r)
 		game.turn_count = 0
 		return
 	}
@@ -304,7 +305,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 				log_messagef(game, "You snuff out the flame.")
 			case .Extinguished:
 				if data.lantern.fuel > 0 {
-					data.lantern.state = .Extinguished
+					data.lantern.state = .Lit
 					log_messagef(game, "You re-light the lantern.")
 				} else {
 					log_messagef(game, "No fuel remains.")

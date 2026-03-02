@@ -284,6 +284,21 @@ Lantern :: struct {
 	max_fuel: int,
 }
 
+get_fov_radii :: proc(game: ^Game) -> (fov_r: int, lantern_r: int) {
+	player_data := get_player(game).data.(Player_Data)
+	fov_r = MAX_FOV_RADIUS
+	lantern_r = 0
+	switch player_data.lantern.state {
+	case .Lit:
+		lantern_r = calculate_lantern_radius(player_data.lantern)
+	case .Extinguished:
+		fov_r = MAX_LANTERN_RADIUS
+	case .Empty:
+		fov_r = 1
+	}
+	return
+}
+
 calculate_lantern_radius :: proc(lantern: Lantern) -> int {
 	if lantern.state != .Lit || lantern.fuel <= 0 {return 0}
 	ratio := f32(lantern.fuel) / f32(lantern.max_fuel)
@@ -453,7 +468,9 @@ descend_floor :: proc(game: ^Game) {
 	// Center cameraand recompute FOV
 	player := get_player(game)
 	center_camera(&game.camera, player.x, player.y, game.map_width, game.map_height)
-	compute_fov(game, player.x, player.y, MAX_FOV_RADIUS, MAX_LANTERN_RADIUS)
+
+    fov_r, lantern_r := get_fov_radii(game)
+	compute_fov(game, player.x, player.y, fov_r, lantern_r)
 
 	log_messagef(game, "You descend to floor %d...", game.current_floor)
 }
