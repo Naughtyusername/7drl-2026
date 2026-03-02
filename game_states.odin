@@ -262,27 +262,41 @@ paused_kill :: proc(sm: ^State_Manager, data: rawptr) {
 handle_input :: proc(game: ^Game) -> Maybe(Action) {
 	player := get_player(game)
 
+    shift := rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT)
+
 	next_x := player.x
 	next_y := player.y
 
-	// TODO we need to swap the rl key here to allow for shifted keys..
-	// when we do that add in numpad and arrow key support.
-	if rl.IsKeyPressed(.K) {next_y -= 1}
-	if rl.IsKeyPressed(.J) {next_y += 1}
-	if rl.IsKeyPressed(.H) {next_x -= 1}
-	if rl.IsKeyPressed(.L) {next_x += 1}
-	if rl.IsKeyPressed(.Y) {next_x -= 1;next_y -= 1}
-	if rl.IsKeyPressed(.U) {next_x += 1;next_y -= 1}
-	if rl.IsKeyPressed(.B) {next_x -= 1;next_y += 1}
-	if rl.IsKeyPressed(.N) {next_x += 1;next_y += 1}
+    // === VI KEYS ====
+    if rl.IsKeyPressed(.H) && !shift {next_x -= 1}
+    if rl.IsKeyPressed(.J) && !shift {next_y += 1}
+    if rl.IsKeyPressed(.K) && !shift {next_y -= 1}
+    if rl.IsKeyPressed(.L) && !shift {next_x += 1}
 
-	// TODO also when inventory is open we need the movement keys toggled off as
-	// i will use a-z selections.. shouldnt have a need to shift / ctrl on them
-	// like in cogmind so it shouldt just be a simple flag to handle it.
+	if rl.IsKeyPressed(.Y) && !shift {next_x -= 1;next_y -= 1}
+	if rl.IsKeyPressed(.U) && !shift {next_x += 1;next_y -= 1}
+	if rl.IsKeyPressed(.B) && !shift {next_x -= 1;next_y += 1}
+	if rl.IsKeyPressed(.N) && !shift {next_x += 1;next_y += 1}
 
-// TODO make this not 60x a second
+    // === NUMPAD ===
+    if rl.IsKeyPressed(.KP_4) && !shift {next_x -= 1}
+    if rl.IsKeyPressed(.KP_2) && !shift {next_y += 1}
+    if rl.IsKeyPressed(.KP_8) && !shift {next_y -= 1}
+    if rl.IsKeyPressed(.KP_6) && !shift {next_x += 1}
+
+	if rl.IsKeyPressed(.KP_7) && !shift {next_x -= 1;next_y -= 1}
+	if rl.IsKeyPressed(.KP_9) && !shift {next_x += 1;next_y -= 1}
+	if rl.IsKeyPressed(.KP_1) && !shift {next_x -= 1;next_y += 1}
+	if rl.IsKeyPressed(.KP_3) && !shift {next_x += 1;next_y += 1}
+
+    // === ARROW KEYS ===
+    if rl.IsKeyPressed(.LEFT) && !shift {next_x -= 1}
+    if rl.IsKeyPressed(.DOWN) && !shift {next_y += 1}
+    if rl.IsKeyPressed(.UP)   && !shift {next_y -= 1}
+    if rl.IsKeyPressed(.RIGHT) && !shift {next_x += 1}
+
 	// Toggle lantern
-	if rl.IsKeyDown(.L) && (rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT)) {
+	if rl.IsKeyPressed(.L) && shift {
 		if data, ok := &player.data.(Player_Data); ok {
 			switch data.lantern.state {
 			case .Lit:
@@ -304,8 +318,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 		}
 	}
 
-	// TEMP TODO stair decend
-	if rl.IsKeyPressed(.PERIOD) && (rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT)) {
+	if rl.IsKeyPressed(.PERIOD) && shift {
 		player_tile := get_tile(game, player.x, player.y)
 		if player_tile == .Stairs_Down {
 			descend_floor(game)
@@ -321,7 +334,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 
 		if target_tile != .Wall {
 			if enemy_at(game, next_x, next_y) {
-				log_messagef(game, "You attacked %d for %d damage!") // TODO: real combat
+				log_messagef(game, "You attacked %d for %d damage!")
 				return .Attack
 			}
 			player.x = next_x
