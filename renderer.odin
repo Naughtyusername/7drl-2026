@@ -296,6 +296,18 @@ draw_hud :: proc(game: ^Game) {
 	player_data, ok := player.data.(Player_Data)
 	if !ok {return}
 
+	// Line 1 x positions
+	HUD_X_PLAYER :: i32(10)
+	HUD_X_HP :: HUD_X_PLAYER + 30
+	HUD_X_FUEL :: HUD_X_HP + 120
+	HUD_X_SAN :: HUD_X_FUEL + 200
+	HUD_X_WEAPON :: HUD_X_SAN + 100
+
+	// Line 2 x positions
+	HUD_X_FLOOR :: i32(10)
+	HUD_X_TURNS :: HUD_X_FLOOR + 60
+	HUD_X_LANTERN :: HUD_X_TURNS + 120
+
 	// === Background and separator ===
 	rl.DrawRectangle(0, i32(HUD_AREA_Y), SCREEN_W, i32(HUD_HEIGHT), rl.Color{0, 11, 30, 255})
 	rl.DrawLine(0, i32(HUD_AREA_Y), SCREEN_W, i32(HUD_AREA_Y), rl.Color{40, 40, 60, 255})
@@ -308,11 +320,11 @@ draw_hud :: proc(game: ^Game) {
 	rl.DrawText("@", 10, y1, FONT_SIZE, sample_color(PLAYER))
 
 	rl.DrawText(
-		fmt.ctprintf("HP:%d/%d", player.hp, 20), // TODO: player.max_hp
+		fmt.ctprintf("HP:%d/%d", player.hp, player.max_hp), // TODO: player.max_hp
 		140,
 		y1,
 		FONT_SIZE,
-		get_resource_color(player.hp, 20),
+		get_resource_color(player.hp, player.max_hp),
 	)
 
 	rl.DrawText(
