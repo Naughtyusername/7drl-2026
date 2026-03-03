@@ -12,14 +12,14 @@ update_player :: proc(game: ^Game, actor: ^Actor, next_x, next_y: int) {
 update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 	player := get_player(game)
 
-    next_x, next_y, found := astar_step(game, actor.x, actor.y, player.x, player.y)
+	next_x, next_y, found := astar_step(game, actor.x, actor.y, player.x, player.y)
 
-    if found && (next_x != actor.x || next_y != actor.y) {
-        actor.x = next_x
-        actor.y = next_y
-        return .Move
-    }
-    // ai state switch later, hunting/alert/roaming/idle etc.
+	if found && (next_x != actor.x || next_y != actor.y) {
+		actor.x = next_x
+		actor.y = next_y
+		return .Move
+	}
+	// ai state switch later, hunting/alert/roaming/idle etc.
 
 	return .Wait
 }
@@ -37,17 +37,50 @@ spawn_enemies :: proc(game: ^Game, count: int) {
 				break
 			}
 		}
-
-		enemy := Actor {
-			id = len(game.actors),
-			x = x,
-			y = y,
-			hp = 10,
-			time_next = 0,
-			speed = 100, // TODO: variable speed
-			data = Enemy_Data{color = sample_color(ENEMY_DEFAULT), char = "e"},
+		actor: Actor
+		if rand.float32() < 0.6 {
+			actor = make_thrall(len(game.actors), x, y)
+		} else {
+			actor = make_wolf(len(game.actors), x, y)
 		}
-		append(&game.actors, enemy)
+		append(&game.actors, actor)
+	}
+
+}
+
+make_thrall :: proc(id, x, y: int) -> Actor {
+	return Actor {
+		id = id,
+		x = x,
+		y = y,
+		hp = 8,
+		max_hp = 8,
+		alive = true,
+		speed = 100,
+		data = Enemy_Data {
+			name = "Thrall",
+			char = "t",
+			color = sample_color(THRALL_COLOR),
+			damage = 3,
+		},
+	}
+}
+
+make_wolf :: proc(id, x, y: int) -> Actor {
+	return Actor {
+		id = id,
+		x = x,
+		y = y,
+		hp = 12,
+		max_hp = 12,
+		alive = true,
+		speed = 120,
+		data = Enemy_Data {
+			name = "Wolf",
+			char = "w",
+			color = sample_color(WOLF_COLOR),
+			damage = 5,
+		},
 	}
 }
 

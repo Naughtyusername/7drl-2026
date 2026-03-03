@@ -93,8 +93,10 @@ Player_Data :: struct {
 }
 
 Enemy_Data :: struct {
+    name:  string,
 	color: rl.Color,
 	char:  cstring,
+    damage: int,
 }
 
 Debug_Throttle :: struct {

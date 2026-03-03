@@ -53,6 +53,18 @@ PLAYER :: Color_Range{10, 195, 205, 5, 8, 8, 5, false}
 // Placeholder enemy — will be replaced per-type later
 ENEMY_DEFAULT :: Color_Range{200, 80, 60, 8, 5, 5, 3, false}
 
+// ===== ENEMIES =====
+THRALL_COLOR :: Color_Range{220, 130, 45, 8, 5, 5, 3, false} // burnt amber
+WOLF_COLOR :: Color_Range{140, 150, 175, 5, 5, 8, 3, false} // steel grey-blue
+SHADE_COLOR :: Color_Range{60, 20, 80, 10, 5, 12, 8, true} // dim purple,
+//  dances
+PEST_COLOR :: Color_Range{160, 230, 30, 8, 10, 5, 6, true} // acid
+//  chartreuse, dances
+KNIGHT_COLOR :: Color_Range{190, 200, 220, 5, 5, 8, 4, false} // pale bone-blue
+WRAITH_COLOR :: Color_Range{192, 1, 181, 20, 0, 15, 12, true} // pulsing
+//  magenta, dances
+BOSS_COLOR :: Color_Range{120, 0, 20, 15, 0, 5, 8, true} // deep blood,
+
 // ===== STANDARD & DEFAULT COLORS =====
 LIGHT_NONE :: rl.Color{0, 0, 0, 255} // Darkness
 AMBIENT_LIGHT :: rl.Color{90, 90, 100, 255}
