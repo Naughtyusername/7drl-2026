@@ -104,6 +104,27 @@ Debug_Throttle :: struct {
 	interval:  f64,
 }
 
+Weapon_Type :: enum {
+	Dagger,
+	Whip,
+}
+
+Weapon_Stats :: struct {
+	damage:    int,
+	speed:     int,
+	max_range: int,
+}
+
+get_weapon_stats :: proc(weapon: Weapon_Type) -> Weapon_Stats {
+	switch weapon {
+	case .Dagger:
+		return Weapon_Stats{damage = 6, speed = 80, max_range = 1}
+	case .Whip:
+		return Weapon_Stats{damage = 4, speed = 100, max_range = 3}
+	}
+	return Weapon_Stats{damage = 6, speed = 80, max_range = 1}
+}
+
 Game :: struct {
 	map_width:       int,
 	map_height:      int,
@@ -118,11 +139,10 @@ Game :: struct {
 	current_time:    int,
 	scheduler:       Scheduler,
 	quit:            bool,
+	wants_restart:   bool,
 	current_floor:   int,
-
-    death_cause:     string, // "Thrall", "Wolf" - set when player dies
-    enemies_slain:   int,
-
+	death_cause:     string, // "Thrall", "Wolf" - set when player dies
+	enemies_slain:   int,
 	logger:          Logger,
 	debug_throttles: map[string]Debug_Throttle,
 	crash_logger:    Logger,
@@ -140,7 +160,7 @@ init_game :: proc(width, height: int) -> Game {
 		map_height = height,
 	}
 
-	game.current_floor = 0
+	game.current_floor = 1
 
 	game.tiles = make([dynamic][dynamic]Tile, height)
 	game.revealed = make([dynamic][dynamic]bool, height)
@@ -183,7 +203,7 @@ init_game :: proc(width, height: int) -> Game {
 		},
 	}
 	append(&game.actors, player)
-	game.player_index = 0
+	game.player_index = 0 // TODO isnt player supposed to always be 1?... double check this is not broken
 
 	game.game_log = init_message_log(1000)
 	game.combat_log = init_message_log(1000)
@@ -251,6 +271,36 @@ cleanup_game :: proc(game: ^Game) {
 	cleanup_logger(&game.crash_logger)
 }
 
+restart_game :: proc(game: ^Game) {
+	player := get_player(game)
+	player.hp = player.max_hp
+	player.time_next = 0
+
+	for y in 0 ..< game.map_height {
+		for x in 0 ..< game.map_width {
+			game.revealed[y][x] = false
+			game.visible[y][x] = false
+		}
+	}
+
+	resize(&game.actors, 1)
+	generate_dungeon(game)
+
+	clear(&game.scheduler.actors)
+	player = get_player(game)
+	for &actor in game.actors {
+		schedule_actor(&game.scheduler, &actor)
+	}
+
+	game.current_floor = 1
+	game.turn_count = 0
+	game.enemies_slain = 0
+
+	center_camera(&game.camera, player.x, player.y, game.map_width, game.map_height)
+	fov_r, lantern_r := get_fov_radii(game)
+	compute_fov(game, player.x, player.y, fov_r, lantern_r)
+}
+
 get_tile :: proc(game: ^Game, x, y: int) -> Tile {
 	if x < 0 || x >= game.map_width || y < 0 || y >= game.map_height {
 		return .Wall
@@ -274,9 +324,9 @@ get_player :: proc(game: ^Game) -> ^Actor {
 
 enemy_at :: proc(game: ^Game, x, y: int) -> bool {
 	for &actor in game.actors {
-        if !actor.alive { continue }
+		if !actor.alive {continue}
 		if _, ok := actor.data.(Enemy_Data); ok {
-            if !actor.alive { continue }
+			if !actor.alive {continue}
 			if actor.x == x && actor.y == y {
 				return true
 			}
@@ -286,12 +336,12 @@ enemy_at :: proc(game: ^Game, x, y: int) -> bool {
 }
 
 get_enemy_at :: proc(game: ^Game, x, y: int) -> ^Actor {
-    for &actor in game.actors {
-        if _, ok := actor.data.(Enemy_Data); !ok { continue }
-        if !actor.alive { continue }
-        if actor.x == x && actor.y == y {return &actor }
-    }
-    return nil
+	for &actor in game.actors {
+		if _, ok := actor.data.(Enemy_Data); !ok {continue}
+		if !actor.alive {continue}
+		if actor.x == x && actor.y == y {return &actor}
+	}
+	return nil
 }
 
 is_player :: proc(actor: ^Actor) -> bool {
@@ -330,8 +380,12 @@ get_fov_radii :: proc(game: ^Game) -> (fov_r: int, lantern_r: int) {
 calculate_lantern_radius :: proc(lantern: Lantern) -> int {
 	if lantern.state != .Lit || lantern.fuel <= 0 {return 0}
 	ratio := f32(lantern.fuel) / f32(lantern.max_fuel)
-    // Brilliant soltiuon to the awkward radii fading, wrap the whole block in a math.round function
-	return clamp(int(math.round(math.pow(ratio, 0.3) * f32(MAX_LANTERN_RADIUS))), 0, MAX_LANTERN_RADIUS)
+	// Brilliant soltiuon to the awkward radii fading, wrap the whole block in a math.round function
+	return clamp(
+		int(math.round(math.pow(ratio, 0.3) * f32(MAX_LANTERN_RADIUS))),
+		0,
+		MAX_LANTERN_RADIUS,
+	)
 }
 
 drain_fuel :: proc(game: ^Game) {
@@ -483,8 +537,6 @@ descend_floor :: proc(game: ^Game) {
 	// keep only the player
 	resize(&game.actors, 1)
 
-	// Later: full heal on floor transition
-
 	// Generate new floor
 	generate_dungeon(game)
 
@@ -500,6 +552,7 @@ descend_floor :: proc(game: ^Game) {
 
 	fov_r, lantern_r := get_fov_radii(game)
 	compute_fov(game, player.x, player.y, fov_r, lantern_r)
+	player.hp = player.max_hp
 
 	log_messagef(game, "You descend to floor %d...", game.current_floor)
 }

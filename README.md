@@ -19,7 +19,7 @@ You play a lone figure descending into mountain caves to seal an ancient evil bu
 
 ## Inspirations
 
-Brogue, Infra Arcana, Cogmind, Darkest Dungeon, Golden Krone Hotel, Castlevania
+Brogue, Infra Arcana, Cogmind, Golden Krone Hotel, Castlevania
 
 ## Tech Stack
 

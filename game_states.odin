@@ -51,8 +51,9 @@ Death_State :: struct {
 
 death_update :: proc(sm: ^State_Manager, data: rawptr) {
 	state := (^Death_State)(data)
-	if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.ESCAPE) || rl.IsKeyPressed(.SPACE) {
-		state.game_ptr.quit = true
+	if rl.GetKeyPressed() != .KEY_NULL {
+		state.game_ptr.wants_restart = true
+		pop_state(sm)
 	}
 }
 
@@ -87,7 +88,7 @@ death_draw :: proc(sm: ^State_Manager, data: rawptr) {
 	rl.DrawText(kills_text, i32(cx) - kw / 2, i32(cy) + 42, 16, rl.Color{120, 120, 130, 255})
 
 	// Prompt
-	prompt := fmt.ctprintf("-- Press any key to exit --")
+	prompt := fmt.ctprintf("-- Press Enter/Space/Escape to exit --")
 	pw := rl.MeasureText(prompt, 14)
 	rl.DrawText(prompt, i32(cx) - pw / 2, i32(cy) + 100, 14, rl.Color{70, 70, 80, 255})
 
@@ -106,6 +107,12 @@ Playing_State :: struct {
 playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 	state := (^Playing_State)(data)
 	game := state.game_ptr
+
+	if game.wants_restart {
+        game.wants_restart = false
+		restart_game(game)
+		return
+	}
 
 	if rl.IsKeyPressed(.R) {
 		for y in 0 ..< game.map_height {
@@ -226,7 +233,8 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 							draw = death_draw,
 							kill = death_kill,
 							is_transparent = true,
-						})
+						},
+					)
 				}
 				break
 			}
