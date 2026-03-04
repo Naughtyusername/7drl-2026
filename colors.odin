@@ -17,6 +17,7 @@ sample_color :: proc(cr: Color_Range) -> rl.Color {
 	b_offset := cr.b_var > 0 ? u8(rand.int_max(int(cr.b_var) + 1)) : 0
 	uniform := cr.uniform_var > 0 ? u8(rand.int_max(int(cr.uniform_var) + 1)) : 0
 
+	// u16 to prevent overflow — adding multiple u8 values can exceed 255
 	r := min(u16(cr.r) + u16(r_offset) + u16(uniform), 255)
 	g := min(u16(cr.g) + u16(g_offset) + u16(uniform), 255)
 	b := min(u16(cr.b) + u16(b_offset) + u16(uniform), 255)
@@ -85,6 +86,8 @@ is_dark :: proc(c: rl.Color) -> bool {
 	return c.r < 10 && c.g < 10 && c.b < 10
 }
 
+// Multiplicative blend — normalizes both to 0.0-1.0, multiplies, rescales.
+// Full light (255) leaves base unchanged. No light (0) goes black.
 apply_lighting :: proc(base: rl.Color, light: rl.Color) -> rl.Color {
 	r := (f32(base.r) / 255.0) * (f32(light.r) / 255.0) * 255.0
 	g := (f32(base.g) / 255.0) * (f32(light.g) / 255.0) * 255.0

@@ -55,6 +55,7 @@ draw_map :: proc(game: ^Game) {
 				tile_base_color := base_color
 				base_color = apply_lighting(tile_base_color, light_color)
 			} else {
+				// TODO: replace with FOG Color_Range lerp — /4 kills low-value colors entirely
 				base_color.r /= 4
 				base_color.g /= 4
 				base_color.b /= 4

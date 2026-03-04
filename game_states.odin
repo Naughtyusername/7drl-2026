@@ -201,8 +201,8 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				game.scheduler.current_time = actor.time_next
 				schedule_actor(&game.scheduler, actor)
 
+				// Lantern handling
 				drain_fuel(game)
-
 				player_data := get_player(game).data.(Player_Data)
 				fov_r := MAX_FOV_RADIUS
 				lantern_r := 0
@@ -210,7 +210,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				case .Lit:
 					lantern_r = calculate_lantern_radius(player_data.lantern)
 				case .Extinguished:
-					fov_r = MAX_FOV_RADIUS // Can still se cave geometry
+					fov_r = MAX_FOV_RADIUS // Can still see cave geometry
 				case .Empty:
 					fov_r = 1 // nearly blind
 				}
@@ -226,22 +226,33 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			}
 		} else {
 			if !actor.alive {continue}
+
+			// Stun handling
+			if actor.stunned_turns > 0 {
+				actor.stunned_turns -= 1
+				action_cost := get_action_cost(.Wait)
+				actor.time_next += action_cost * 100 / actor.speed
+				game.current_time = actor.time_next
+				game.scheduler.current_time = actor.time_next
+				schedule_actor(&game.scheduler, actor)
+				continue
+			}
+
+			// Death state handling
 			ai_action := update_enemy(game, actor)
 			if get_player(game).hp <= 0 {
-				if get_player(game).hp <= 0 {
-					death_state_data := new(Death_State)
-					death_state_data.game_ptr = game
-					push_state(
-						sm,
-						Game_State {
-							data = death_state_data,
-							update = death_update,
-							draw = death_draw,
-							kill = death_kill,
-							is_transparent = true,
-						},
-					)
-				}
+				death_state_data := new(Death_State)
+				death_state_data.game_ptr = game
+				push_state(
+					sm,
+					Game_State {
+						data = death_state_data,
+						update = death_update,
+						draw = death_draw,
+						kill = death_kill,
+						is_transparent = true,
+					},
+				)
 				break
 			}
 			action_cost := get_action_cost(ai_action)
@@ -420,8 +431,49 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 	if rl.IsKeyPressed(.A) {
 		pd := player.data.(Player_Data)
 		if pd.active_weapon != .Whip {
-
+			log_messagef(game, "Nothing to activate.")
+			return nil
 		}
+		// Scan in facing dir for a target to trip
+		dx := pd.last_dx
+		dy := pd.last_dy
+		for dist in 1 ..= 3 {
+			check_x := player.x + dx * dist
+			check_y := player.y + dy * dist
+
+			if get_tile(game, check_x, check_y) == .Wall {break}
+			if target := get_enemy_at(game, check_x, check_y); target != nil {
+				stats := get_weapon_stats(pd.active_weapon)
+				target.stunned_turns = 2
+				if e_data, ok := target.data.(Enemy_Data); ok {
+					log_messagef(game, "You trip the %s!", e_data.name)
+				}
+				game.last_action_cost = stats.ability_cost
+				return .Attack
+			}
+		}
+		log_messagef(game, "No target in range.")
+		return nil
+	}
+
+	// (K)ick skill
+	if rl.IsKeyPressed(.K) && shift {
+		pd := player.data.(Player_Data)
+		// kick at nothing
+		if pd.last_dx == 0 && pd.last_dy == 0 {
+			log_messagef(game, "You kick at nothing.")
+			return nil
+		}
+
+		// nothing *to* kick
+		target := get_enemy_at(game, player.x + pd.last_dx, player.y + pd.last_dy)
+		if target == nil {
+			log_messagef(game, "Nothing to kick.")
+			return nil
+		}
+		game.last_action_cost = 100
+		resolve_kick(game, player, target, pd.last_dx, pd.last_dy)
+		return .Attack
 	}
 
 	if rl.IsKeyPressed(.PERIOD) && shift {

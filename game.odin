@@ -72,7 +72,7 @@ Camera :: struct {
 }
 
 Actor :: struct {
-    // base stats
+	// base stats
 	id:            int,
 	x, y:          int,
 	hp:            int,
@@ -82,7 +82,7 @@ Actor :: struct {
 	speed:         int,
 	// data
 	data:          Actor_Data,
-	stunned_state: int,
+	stunned_turns: int,
 }
 
 Actor_Data :: union {
@@ -117,17 +117,19 @@ Weapon_Type :: enum {
 }
 
 Weapon_Stats :: struct {
-	damage:    int,
-	speed:     int,
-	max_range: int,
+	damage:           int,
+	speed:            int,
+	max_range:        int,
+	get_weapon_stats: int,
+	ability_cost:     int,
 }
 
 get_weapon_stats :: proc(weapon: Weapon_Type) -> Weapon_Stats {
 	switch weapon {
 	case .Dagger:
-		return Weapon_Stats{damage = 6, speed = 80, max_range = 1}
+		return Weapon_Stats{damage = 6, speed = 80, max_range = 1, ability_cost = 0}
 	case .Whip:
-		return Weapon_Stats{damage = 4, speed = 100, max_range = 3}
+		return Weapon_Stats{damage = 4, speed = 100, max_range = 3, ability_cost = 150}
 	}
 	return Weapon_Stats{damage = 6, speed = 80, max_range = 1}
 }
@@ -394,7 +396,8 @@ get_fov_radii :: proc(game: ^Game) -> (fov_r: int, lantern_r: int) {
 calculate_lantern_radius :: proc(lantern: Lantern) -> int {
 	if lantern.state != .Lit || lantern.fuel <= 0 {return 0}
 	ratio := f32(lantern.fuel) / f32(lantern.max_fuel)
-	// Brilliant soltiuon to the awkward radii fading, wrap the whole block in a math.round function
+	// math.round before int() is critical — truncation alone drops the radius on the first fuel tick.
+	// pow(0.3) keeps it near max for ~80% of fuel, then steps down. First drop happens around turn 60.
 	return clamp(
 		int(math.round(math.pow(ratio, 0.3) * f32(MAX_LANTERN_RADIUS))),
 		0,

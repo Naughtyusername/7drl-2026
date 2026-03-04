@@ -22,7 +22,7 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 			resolve_enemy_attack(game, actor^, player)
 			return .Attack
 		}
-        if get_enemy_at(game, next_x, next_y) != nil { return .Wait }
+		if get_enemy_at(game, next_x, next_y) != nil {return .Wait}
 		actor.x = next_x
 		actor.y = next_y
 		return .Move
@@ -103,4 +103,36 @@ place_player :: proc(game: ^Game) {
 			}
 		}
 	}
+}
+
+resolve_kick :: proc(game: ^Game, player: ^Actor, target: ^Actor, dx, dy: int) {
+	base_damage := 3
+	push_x := target.x + dx
+	push_y := target.y + dy
+
+	// Wall Kick
+	if get_tile(game, push_x, push_y) == .Wall {
+		base_damage += 2
+		target.hp -= base_damage
+		if e, ok := target.data.(Enemy_Data); ok {
+			log_combat(game, "You kick the %s into the wall for %d damage!", e.name, base_damage)
+		}
+		// Push kick
+	} else if get_enemy_at(game, push_x, push_y) == nil {
+		target.x = push_x
+		target.y = push_y
+		target.hp -= base_damage
+		if e, ok := target.data.(Enemy_Data); ok {
+			log_combat(game, "You kick the %s back!", e.name)
+		}
+		// Normal kick
+	} else {
+		target.hp -= base_damage
+        if e, ok := target.data.(Enemy_Data); ok {
+			log_combat(game, "You kick the %s!", e.name)
+		}
+	}
+    if target.hp <= 0 {
+        kill_enemy(game, target)
+}
 }

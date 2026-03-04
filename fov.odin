@@ -21,6 +21,9 @@ OCTANT_MULTIPLIERS :: [8][4]int {
 	{1, 0, 0, -1},
 }
 
+// Maps octant-local (row, col) back to world coords.
+// Each octant is a 45-degree wedge — OCTANT_MULTIPLIERS rotates/reflects the
+// local grid into the right world orientation for that wedge.
 transform_octant :: proc(ox, oy, row, col, octant: int) -> (int, int) {
 	table := OCTANT_MULTIPLIERS
 	m := table[octant]
