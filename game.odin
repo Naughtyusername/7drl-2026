@@ -9,7 +9,8 @@ MAP_HEIGHT :: 25
 VIEWPORT_WIDTH :: 60
 VIEWPORT_HEIGHT :: 34
 
-TILE_SIZE :: 20
+TILE_SIZE :: 24 // TODO offer a set of options possibly, but 24-28 like in cogmind
+// works best for my blind ass. 20 was fun but to smol.
 
 // will tweak later
 HUD_HEIGHT :: 44 // 2 lines x ~20px + 4px padding
@@ -87,9 +88,12 @@ Actor_Data :: union {
 }
 
 Player_Data :: struct {
-	color:   rl.Color,
-	char:    cstring,
-	lantern: Lantern,
+	color:         rl.Color,
+	char:          cstring,
+	lantern:       Lantern,
+	active_weapon: Weapon_Type, // TODO change to 1 to make whip default.
+	last_dx:       int,
+	last_dy:       int,
 }
 
 Enemy_Data :: struct {
@@ -126,32 +130,36 @@ get_weapon_stats :: proc(weapon: Weapon_Type) -> Weapon_Stats {
 }
 
 Game :: struct {
-	map_width:       int,
-	map_height:      int,
-	tiles:           [dynamic][dynamic]Tile,
-	revealed:        [dynamic][dynamic]bool,
-	visible:         [dynamic][dynamic]bool,
-	light_map:       [dynamic][dynamic]rl.Color,
-	actors:          [dynamic]Actor,
-	player_index:    int, // Index of player in actors array (always 0)
-	camera:          Camera,
-	turn_count:      int,
-	current_time:    int,
-	scheduler:       Scheduler,
-	quit:            bool,
-	wants_restart:   bool,
-	current_floor:   int,
-	death_cause:     string, // "Thrall", "Wolf" - set when player dies
-	enemies_slain:   int,
-	logger:          Logger,
-	debug_throttles: map[string]Debug_Throttle,
-	crash_logger:    Logger,
-	game_log:        Message_Log,
-	combat_log:      Message_Log,
-	debug_log:       Message_Log,
+	map_width:        int,
+	map_height:       int,
+	tiles:            [dynamic][dynamic]Tile,
+	revealed:         [dynamic][dynamic]bool,
+	visible:          [dynamic][dynamic]bool,
+	light_map:        [dynamic][dynamic]rl.Color,
+	actors:           [dynamic]Actor,
+	player_index:     int, // Index of player in actors array (always 0)
+	camera:           Camera,
+	turn_count:       int,
+	current_time:     int,
+	scheduler:        Scheduler,
+    // quitter
+	quit:             bool,
+	wants_restart:    bool,
+    // status
+	last_action_cost: int,
+	current_floor:    int,
+	death_cause:      string, // "Thrall", "Wolf" - set when player dies
+	enemies_slain:    int,
+	// log/debug
+	logger:           Logger,
+	debug_throttles:  map[string]Debug_Throttle,
+	crash_logger:     Logger,
+	game_log:         Message_Log,
+	combat_log:       Message_Log,
+	debug_log:        Message_Log,
 
 	// Debug: Track how many times each tile receives light
-	light_hit_count: [dynamic][dynamic]int,
+	light_hit_count:  [dynamic][dynamic]int,
 }
 
 init_game :: proc(width, height: int) -> Game {
@@ -200,6 +208,9 @@ init_game :: proc(width, height: int) -> Game {
 		data = Player_Data {
 			color = sample_color(PLAYER),
 			lantern = Lantern{state = .Lit, fuel = 300, max_fuel = 300},
+			active_weapon = .Whip,
+			last_dx = 0,
+			last_dy = 1,
 		},
 	}
 	append(&game.actors, player)

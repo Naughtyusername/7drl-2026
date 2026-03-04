@@ -109,7 +109,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 	game := state.game_ptr
 
 	if game.wants_restart {
-        game.wants_restart = false
+		game.wants_restart = false
 		restart_game(game)
 		return
 	}
@@ -189,8 +189,14 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 
 		if is_player(actor) {
 			if action, ok := handle_input(game).?; ok {
-				action_cost := get_action_cost(action)
+				action_cost: int
+				if action == .Attack {
+					action_cost = game.last_action_cost
+				} else {
+					action_cost = get_action_cost(action)
+				}
 				actor.time_next += action_cost * 100 / actor.speed
+
 				game.current_time = actor.time_next
 				game.scheduler.current_time = actor.time_next
 				schedule_actor(&game.scheduler, actor)
@@ -373,6 +379,20 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 	if rl.IsKeyPressed(.UP) && !shift {next_y -= 1}
 	if rl.IsKeyPressed(.RIGHT) && !shift {next_x += 1}
 
+	if rl.IsKeyPressed(.TAB) {
+		if pd, ok := &player.data.(Player_Data); ok {
+			if pd.active_weapon == .Dagger {
+				pd.active_weapon = .Whip
+				log_messagef(game, "You ready the whip")
+			} else if pd.active_weapon == .Whip {
+				pd.active_weapon = .Dagger
+				log_messagef(game, "You pull your dagger")
+			}
+		}
+		return .Wait // TODO fix this later, return the proper time value based on how long
+		// it takes to swap (items will affect this when i get those in)
+	}
+
 	// Toggle lantern
 	if rl.IsKeyPressed(.L) && shift {
 		if data, ok := &player.data.(Player_Data); ok {
@@ -407,7 +427,13 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 		}
 	}
 
+	// big boy logic
 	if next_x != player.x || next_y != player.y {
+		if pd, ok := &player.data.(Player_Data); ok {
+			pd.last_dx = next_x - player.x
+			pd.last_dy = next_y - player.y
+		}
+
 		target_tile := get_tile(game, next_x, next_y)
 
 		if target_tile != .Wall {

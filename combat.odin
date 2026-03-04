@@ -1,7 +1,5 @@
 package sdrl
 
-PLAYER_BASE_DAMAGE :: 6
-
 kill_enemy :: proc(game: ^Game, target: ^Actor) {
 	target.alive = false
 
@@ -13,9 +11,16 @@ kill_enemy :: proc(game: ^Game, target: ^Actor) {
 }
 
 resolve_player_attack :: proc(game: ^Game, attacker: ^Actor, target: ^Actor) {
-	damage := PLAYER_BASE_DAMAGE
+	player := get_player(game)
+	player_data, ok := player.data.(Player_Data)
+	if !ok { return }
+
+	stats := get_weapon_stats(player_data.active_weapon)
+	damage := stats.damage
+	game.last_action_cost = stats.speed
+
 	target.hp -= damage
-	if enemy_data, ok := target.data.(Enemy_Data); ok {
+	if enemy_data, e_ok := target.data.(Enemy_Data); e_ok {
 		log_combat(game, "You strike the %s for %d damage!", enemy_data.name, damage)
 	}
 	if target.hp <= 0 {

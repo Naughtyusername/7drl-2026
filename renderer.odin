@@ -142,7 +142,7 @@ draw_game :: proc(sm: ^State_Manager) {
 draw_enemies :: proc(game: ^Game) {
 	for &actor in game.actors {
 		if data, ok := actor.data.(Enemy_Data); ok {
-            if !actor.alive { continue }
+			if !actor.alive {continue}
 			if game.visible[actor.y][actor.x] {
 				screen_x, screen_y, in_view := world_to_screen(game.camera, actor.x, actor.y)
 				if in_view {
@@ -338,8 +338,12 @@ draw_hud :: proc(game: ^Game) {
 
 	rl.DrawText("San:0%", 460, y1, FONT_SIZE, rl.Color{0, 220, 230, 255}) //
 	// TODO: sanity
-	rl.DrawText("[Fists]", 560, y1, FONT_SIZE, rl.WHITE) //
-	// TODO: weapon
+    base_name: cstring
+    switch player_data.active_weapon {
+    case .Dagger: base_name = "Dagger"
+    case .Whip: base_name = "Whip"
+}
+    rl.DrawText(fmt.ctprintf("Wep[%s]", base_name), 560, y1, FONT_SIZE, rl.WHITE)
 
 	// === Line 2: game state ===
 	rl.DrawText(fmt.ctprintf("Fl:%d", game.current_floor), 10, y2, FONT_SIZE, rl.WHITE)
