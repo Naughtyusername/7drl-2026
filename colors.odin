@@ -46,6 +46,12 @@ PEDESTAL_COLOR :: Color_Range{180, 120, 255, 15, 10, 20, 12, true}
 // More sacred, cooler color, with faser dancing, similar to stairs goldish
 GOLD_COLOR :: Color_Range{255, 215, 0, 10, 10, 5, 8, true}
 
+// Thrall torch — warm amber-orange fire, strong flicker
+THRALL_LIGHT :: Color_Range{180, 80, 20, 25, 15, 5, 15, true}
+
+// Wraith aura — dim sickly magenta, eerie pulse
+WRAITH_LIGHT :: Color_Range{70, 5, 70, 15, 0, 10, 10, true}
+
 // Trap colors ^
 TRAP_SPIKE_COLOR :: Color_Range{180, 60, 30, 10, 5, 5, 5, false}
 TRAP_SNARE_COLOR :: Color_Range{120, 90, 40, 8, 8, 5, 4, false}

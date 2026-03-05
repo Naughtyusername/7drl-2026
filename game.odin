@@ -36,7 +36,7 @@ MAX_FOV_RADIUS :: 12 // how far player can see when not in darkness/blinded
 BASE_SPEED :: 100 // for speed based math calls that dont need go off of actor.speed, standard value
 
 // Mutable Variants
-fov_radius: int = 10 // TODO: dynamic lighting via lantern
+fov_radius: int = 10 // TODO: dynamic lighting via lantern // adjust this when level gen is better.
 screen_w: int
 screen_h: int
 
@@ -162,7 +162,7 @@ use_item :: proc(game: ^Game, idx: int) {
 
 	switch d in item.data {
 	case Potion_Data:
-	#partial	switch d.type {
+		#partial switch d.type {
 		case .Healing:
 			healed := min(10, player.max_hp - player.hp)
 			player.hp += healed
@@ -194,11 +194,11 @@ use_item :: proc(game: ^Game, idx: int) {
 drop_item :: proc(game: ^Game, idx: int) {
 	player := get_player(game)
 	pd := &player.data.(Player_Data)
-	if idx < 0 || idx >= len(pd.inventory) { return }
+	if idx < 0 || idx >= len(pd.inventory) {return}
 	item := pd.inventory[idx]
 	item.x = player.x
 	item.y = player.y
-	append(&game.items,item)
+	append(&game.items, item)
 	log_messagef(game, "You drop the %s.", item_name(item))
 	unordered_remove(&pd.inventory, idx)
 

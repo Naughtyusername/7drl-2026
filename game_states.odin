@@ -243,6 +243,24 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				//FOV recompute
 				fov_r, lantern_r := get_fov_radii(game)
 				compute_fov(game, actor.x, actor.y, fov_r, lantern_r)
+				// Enemy lighting compute
+				for &ea in game.actors {
+					if !ea.alive {continue}
+					ed, ok := ea.data.(Enemy_Data)
+					if !ok {continue}
+					if .Carries_Light not_in ed.tags {continue}
+					if ed.light_radius <= 0 {continue}
+					lc: rl.Color
+					#partial switch ed.enemy_type {
+					case .Thrall:
+						lc = sample_color(THRALL_LIGHT)
+					case .Wraith:
+						lc = sample_color(WRAITH_LIGHT)
+					case:
+						lc = rl.WHITE
+					}
+					emit_light(game, ea.x, ea.y, ed.light_radius, lc)
+				}
 				game.turn_count += 1
 				player_acted = true
 				continue
@@ -271,6 +289,24 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 
 				center_camera(&game.camera, actor.x, actor.y, game.map_width, game.map_height)
 				compute_fov(game, actor.x, actor.y, fov_r, lantern_r)
+				// Enemy lighting compute
+				for &ea in game.actors {
+					if !ea.alive {continue}
+					ed, e_ok := ea.data.(Enemy_Data)
+					if !e_ok {continue}
+					if .Carries_Light not_in ed.tags {continue}
+					if ed.light_radius <= 0 {continue}
+					lc: rl.Color
+					#partial switch ed.enemy_type {
+					case .Thrall:
+						lc = sample_color(THRALL_LIGHT)
+					case .Wraith:
+						lc = sample_color(WRAITH_LIGHT)
+					case:
+						lc = rl.WHITE
+					}
+					emit_light(game, ea.x, ea.y, ed.light_radius, lc)
+				}
 				game.turn_count += 1
 
 				WRAITH_SPAWN_INTERVAL_BASE :: 150

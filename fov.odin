@@ -261,8 +261,31 @@ has_los :: proc(game: ^Game, x0, y0, x1, y1: int) -> bool {
 		if x == x1 && y == y1 {return true}
 		if get_tile(game, x, y) == .Wall {return false}
 		e2 := 2 * err
-		if e2 > -dx {err -= dy; x += sx}
-		if e2 < dy {err += dx; y += sy}
+		if e2 > -dx {err -= dy;x += sx}
+		if e2 < dy {err += dx;y += sy}
 	}
-    return true
+	return true
+}
+
+// Enemy light / Non player light emit
+emit_light :: proc(game: ^Game, origin_x, origin_y, radius: int, color: rl.Color) {
+	if !in_bounds(game, origin_x, origin_y) {return}
+	// doing it this way doesnt clear the screen of player or enemy lights like my previous attempt
+	light_visited := make(map[[2]int]bool)
+	defer delete(light_visited)
+	for octant in 0 ..< 8 {
+		cast_light(
+			game,
+			origin_x,
+			origin_y,
+			radius,
+			octant,
+			1,
+			1.0,
+			0.0,
+			&light_visited,
+			.Lighting,
+			color,
+		)
+	}
 }
