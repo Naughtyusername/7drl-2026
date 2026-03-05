@@ -1,9 +1,9 @@
 package sdrl
 
+import "core:fmt"
 import "core:math/rand"
 import "core:os"
 import "core:strings"
-import "core:fmt"
 
 place_stairs :: proc(game: ^Game) {
 	player := get_player(game)
@@ -142,9 +142,60 @@ generate_dungeon :: proc(game: ^Game) {
 	place_stairs(game)
 	spawn_enemies(game, 10)
 
-    dump_map_ascii(game, "./logs/map.txt")
+	place_traps(game)
+
+	dump_map_ascii(game, "./logs/map.txt")
 
 	log_messagef(game, "The dungeon shift around you...")
+}
+
+place_traps :: proc(game: ^Game) {
+	// 3 + game.current_floor / 3. 3 6 9 etc. - basic start TODO adjust later
+	// manhatan heuristic, distance from other traps, no trap clusters currently or ever
+	// at least a few tiles from player spawn, no one turn trap(ideally none in the starting proximity if i can get that in here)
+	player := get_player(game)
+
+	// Collect all corridor tiles
+	corridors := make([dynamic][2]int, 0, 64)
+	defer delete(corridors)
+
+	for y in 1 ..< game.map_height - 1 {
+		for x in 1 ..< game.map_width - 1 {
+			if is_corridor_tile(game, x, y) {
+				append(&corridors, [2]int{x, y})
+			}
+		}
+	}
+
+	rand.shuffle(corridors[:])
+
+	num_traps := 3 + game.current_floor / 3
+	placed := 0
+
+	for candidate in corridors {
+		if placed >= num_traps {break}
+		cx, cy := candidate[0], candidate[1]
+
+		//Distance from player start
+		player_dist := abs(cx - player.x) + abs(cy - player.y)
+		if player_dist < 3 {continue}
+
+		//Distance from existing traps
+		too_close := false
+		for trap in game.traps {
+			d := abs(cx - trap.x) + abs(cy - trap.y)
+			if d < 5 {
+				too_close = true
+				break
+			}
+		}
+        if too_close { continue }
+
+        // Counting enum values with uniform distribution the odin way
+        trap_type := Trap_Type(rand.int_max(len(Trap_Type)))
+        append(&game.traps, Trap{x = cx, y = cy, type = trap_type})
+        placed += 1
+	}
 }
 
 dump_map_ascii :: proc(game: ^Game, filename: string) {
@@ -191,4 +242,18 @@ dump_map_ascii :: proc(game: ^Game, filename: string) {
 
 	content := strings.to_string(sb)
 	_ = os.write_entire_file(filename, transmute([]byte)content)
+}
+
+is_corridor_tile :: proc(game: ^Game, x, y: int) -> bool {
+	if get_tile(game, x, y) != .Floor {return false}
+
+	n := get_tile(game, x, y - 1) == .Floor
+	s := get_tile(game, x, y + 1) == .Floor
+	e := get_tile(game, x + 1, y) == .Floor
+	w := get_tile(game, x - 1, y) == .Floor
+
+	// Exactly 2 neightbors AND they must be opposite pairs
+	ns := n && s && !e && !w
+	ew := e && w && !n && !s
+	return ns || ew
 }

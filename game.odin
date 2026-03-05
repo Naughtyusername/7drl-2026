@@ -145,6 +145,7 @@ Enemy_Data :: struct {
 	char:         cstring,
 	damage:       int,
 	vision_range: int,
+    stunned_turns: int,
 	enemy_type:   Enemy_Type,
 	ai_state:     AI_State,
 	tags:         bit_set[Enemy_Tag],
@@ -197,6 +198,20 @@ Boon_Pedistal :: struct {
 	x, y:   int,
 	active: bool,
 }
+Trap_Type :: enum {
+    Spike,
+    Snare,
+    Alarm,
+    Gas,
+    Pit,
+}
+
+Trap :: struct {
+    x, y: int,
+    type: Trap_Type,
+    revealed: bool,
+    triggered: bool,
+}
 
 Game :: struct {
 	map_width:        int,
@@ -217,6 +232,8 @@ Game :: struct {
 	// quitter
 	quit:             bool,
 	wants_restart:    bool,
+    // Traps
+    traps: [dynamic]Trap,
 	// status
 	last_action_cost: int,
 	current_floor:    int,
@@ -259,8 +276,13 @@ init_game :: proc(width, height: int) -> Game {
 		game.light_map[i] = make([dynamic]rl.Color, width)
 	}
 
+    // eventually increase the size of this... TODO this will leak / break otherwise
 	game.actors = make([dynamic]Actor, 0, 50)
 
+    // Traps
+    game.traps = make([dynamic]Trap, 0, 32)
+
+    // Camera
 	game.camera = Camera {
 		x               = 0,
 		y               = 0,
@@ -268,6 +290,7 @@ init_game :: proc(width, height: int) -> Game {
 		viewport_height = VIEWPORT_HEIGHT,
 	}
 
+    // Player Init
 	player := Actor {
 		id = 0,
 		x = width / 2,
@@ -333,6 +356,7 @@ cleanup_game :: proc(game: ^Game) {
 	delete(game.light_map)
 	delete(game.actors)
 	delete(game.scheduler.actors)
+	delete(game.traps)
 
 	cleanup_messages_log(&game.game_log)
 	cleanup_messages_log(&game.combat_log)
@@ -626,8 +650,10 @@ descend_floor :: proc(game: ^Game) {
 	// keep only the player
 	resize(&game.actors, 1)
 
+    // Clean up map before generate dungeon replaces things
 	game.treasure_room = nil
 	game.pedestal = nil
+    clear(&game.traps)
 
 	// Generate new floor
 	generate_dungeon(game)

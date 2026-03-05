@@ -203,6 +203,21 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 		if actor == nil {break}
 
 		if is_player(actor) {
+			if actor.stunned_turns > 0 {
+				actor.stunned_turns -= 1
+				log_messagef(game, "You are stunned!")
+				actor.time_next += BASE_SPEED * BASE_SPEED / actor.speed
+				game.current_time = actor.time_next
+				game.scheduler.current_time = actor.time_next
+				schedule_actor(&game.scheduler, actor)
+				drain_fuel(game)
+				//FOV recompute
+				fov_r, lantern_r := get_fov_radii(game)
+				compute_fov(game, actor.x, actor.y, fov_r, lantern_r)
+				game.turn_count += 1
+				player_acted = true
+				continue
+			}
 			if result, ok := handle_input(game).?; ok { 	// .? is odins Maybe/Optional wrapper
 				// try to unwrap this Maybe, if there is data, run it.
 				actor.time_next += result.cost * BASE_SPEED / actor.speed
@@ -512,7 +527,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 		return Action_Result{action = .Wait, cost = BASE_SPEED}
 	}
 
-	// big boy logic
+	// Movement
 	if next_x != player.x || next_y != player.y {
 		if pd, ok := &player.data.(Player_Data); ok {
 			pd.last_dx = next_x - player.x

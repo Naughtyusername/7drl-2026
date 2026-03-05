@@ -167,6 +167,68 @@ make_wolf :: proc(id, x, y: int) -> Actor {
 	}
 }
 
+check_trap :: proc(game: ^Game, actor: ^Actor) {
+	for &trap in game.traps {
+		if trap.x != actor.x || trap.y != actor.y {continue}
+		if trap.triggered {continue}
+
+		trap.triggered = true
+		trap.revealed = true
+
+		is_player_actor := is_player(actor)
+
+		switch trap.type {
+		case .Spike:
+			actor.hp -= 5
+			if is_player_actor {
+				log_messagef(game, "Spikes shoot from the floor! (-%5 HP)")
+			}
+		case .Snare:
+			if is_player_actor {
+				actor.stunned_turns = 2
+				if is_player_actor {
+					log_messagef(game, "A snare catches your leg! You're stunned.")
+				}
+			} else {
+				actor.stunned_turns = 2
+			}
+		case .Alarm:
+			for &a in game.actors {
+				if e, ok := &a.data.(Enemy_Data); ok {
+					e.ai_state = .Hunting
+					e.last_known_x = trap.x
+					e.last_known_y = trap.y
+				}
+			}
+			log_messagef(game, "A shrill alarm sounds!")
+		case .Gas:
+			if is_player_actor {
+				pd := actor.data.(Player_Data)
+				if .Iron_Lungs not_in pd.boons {
+					if data := &actor.data.(Player_Data); true {
+						data.lantern.fuel -= 50 // TODO make sure this is working
+						if data.lantern.fuel < 0 {data.lantern.fuel = 0}
+					}
+					log_messagef(game, "Choking gas! Your lantern dims.")
+				} else {
+					log_messagef(game, "Choking gas -- but your lungs hold")
+				}
+			}
+		case .Pit:
+			actor.hp -= 3
+			if is_player_actor {
+				log_messagef(game, "You fall into a pit! (-3 HP)")
+			}
+		}
+
+		// Check death
+		if actor.hp <= 0 && is_player_actor {
+			// Death handled by caller checking hp
+			// TODO
+		}
+	}
+}
+
 place_player :: proc(game: ^Game) {
 	player := get_player(game)
 	player.x = game.map_width / 2
