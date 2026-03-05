@@ -145,6 +145,7 @@ generate_dungeon :: proc(game: ^Game) {
 	spawn_enemies(game, enemy_count)
 	place_traps(game)
 	spawn_gold_piles(game)
+	spawn_items(game)
 
 	dump_map_ascii(game, "./logs/map.txt")
 	log_messagef(game, "The dungeon shift around you...")

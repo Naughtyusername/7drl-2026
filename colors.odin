@@ -53,6 +53,10 @@ TRAP_ALARM_COLOR :: Color_Range{200, 180, 50, 10, 10, 5, 8, true}
 TRAP_GAS_COLOR :: Color_Range{80, 180, 60, 8, 15, 8, 6, true}
 TRAP_PIT_COLOR :: Color_Range{30, 20, 15, 5, 5, 3, 3, false}
 
+// Item / Inventory colors
+POTION_COLOR :: Color_Range{180, 60, 200, 15, 5, 20, 10, true}
+SCROLL_COLOR :: Color_Range{220, 210, 160, 8, 8, 5, 6, false}
+
 // Fog of war — flat, no variance
 FOG :: Color_Range{8, 12, 25, 0, 0, 0, 0, false}
 

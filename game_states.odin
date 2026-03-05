@@ -123,6 +123,23 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			}
 		}
 
+		if rl.IsKeyPressed(.I) {
+			inv := new(Inventory_State)
+			inv.game_ptr = game
+			inv.selected_idx = -1
+			push_state(
+				sm,
+				Game_State {
+					data = inv,
+					update = inventory_update,
+					draw = inventory_draw,
+					kill = inventory_kill,
+					is_transparent = true,
+				},
+			)
+			return
+		}
+
 		resize(&game.actors, 1) // Keep only player at index 0 ALWAYS
 
 		generate_dungeon(game)
@@ -196,6 +213,13 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			ascend_floor(game)
 		}
 	}
+	when ODIN_DEBUG {
+		if rl.IsKeyPressed(.Z) {
+			player := get_player(game)
+			player.hp = player.max_hp
+			log_messagef(game, "[DEBUG] Healed.")
+		}
+	}
 
 	player_acted := false
 
@@ -245,13 +269,13 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				compute_fov(game, actor.x, actor.y, fov_r, lantern_r)
 				game.turn_count += 1
 
-				WRAITH_SPAWN_TURN :: 150 // per floor, can repeat TODO
+				WRAITH_SPAWN_INTERVAL_BASE :: 150
+				WRAITH_SPAWN_INTERVAL_MIN :: 80
+
 				// wraith spawn checker
-				if !game.wraith_spawned &&
-				   game.current_floor >= 2 &&
-				   game.turn_count >= WRAITH_SPAWN_TURN {
+				if game.current_floor >= 2 && game.turn_count >= game.next_wraith_spawn {
 					player := get_player(game)
-					// Find a floor tile far from player, basically rip the stair logic
+					// spawn away from player
 					spawn_x, spawn_y := player.x, player.y
 					best_dist := 0
 					for _ in 0 ..< 200 {
@@ -268,7 +292,15 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					wraith := make_wraith(len(game.actors), spawn_x, spawn_y)
 					append(&game.actors, wraith)
 					schedule_actor(&game.scheduler, &game.actors[len(game.actors) - 1])
-					game.wraith_spawned = true
+					game.wraith_count += 1
+					// Each successive wraith comes faster, floor depth also tightens interval
+					interval := max(
+						WRAITH_SPAWN_INTERVAL_MIN,
+						WRAITH_SPAWN_INTERVAL_BASE -
+						game.wraith_count * 15 -
+						game.current_floor * 5,
+					)
+					game.next_wraith_spawn += interval
 					log_messagef(game, "A chill runs down your spine...")
 				}
 
@@ -325,6 +357,7 @@ playing_draw :: proc(sm: ^State_Manager, data: rawptr) {
 	draw_pedestal(game)
 	draw_traps(game)
 	draw_gold_piles(game)
+	draw_items(game)
 	draw_enemies(game)
 	draw_player(game)
 	draw_hud(game) // bottom bar ui/hud
@@ -433,10 +466,145 @@ try_pickup_item :: proc(game: ^Game) {
 	}
 }
 
+Inventory_State :: struct {
+	game_ptr:     ^Game,
+	selected_idx: int, // -1 = no selection
+}
+
+inventory_update :: proc(sm: ^State_Manager, data: rawptr) {
+	state := (^Inventory_State)(data)
+	game := state.game_ptr
+	player := get_player(game)
+	pd := &player.data.(Player_Data)
+	shift := rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT)
+
+	if rl.IsKeyPressed(.ESCAPE) {
+		if state.selected_idx >= 0 {
+			state.selected_idx = -1
+		} else {
+			pop_state(sm)
+		}
+		return
+	}
+
+	if state.selected_idx < 0 {
+		// Letter selection
+		for i in 0 ..< 26 {
+			key := rl.KeyboardKey(int(rl.KeyboardKey.A) + i)
+			if rl.IsKeyPressed(key) && i < len(pd.inventory) {
+				state.selected_idx = i
+				return
+			}
+		}
+	} else {
+		item := pd.inventory[state.selected_idx]
+		// d = drink potion
+		if rl.IsKeyPressed(.D) && !shift {
+			if _, ok := item.data.(Potion_Data); ok {
+				use_item(game, state.selected_idx)
+				pop_state(sm)
+				return
+			}
+		}
+		// r = read scroll
+		if rl.IsKeyPressed(.R) {
+			if _, ok := item.data.(Scroll_Data); ok {
+				use_item(game, state.selected_idx)
+				pop_state(sm)
+				return
+			}
+		}
+		// D = drop
+		if rl.IsKeyPressed(.D) && shift {
+			drop_item(game, state.selected_idx)
+			state.selected_idx = -1
+			if len(pd.inventory) == 0 {pop_state(sm)}
+			return
+		}
+	}
+}
+
+inventory_draw :: proc(sm: ^State_Manager, data: rawptr) {
+	state := (^Inventory_State)(data)
+	game := state.game_ptr
+	pd := get_player(game).data.(Player_Data)
+
+	INV_X :: i32(80)
+	INV_Y :: i32(60)
+	INV_W :: i32(SCREEN_W) - 160
+	INV_H :: i32(SCREEN_H) - 120
+	INV_FONT :: i32(16)
+	INV_LINE_H :: i32(20)
+
+	rl.DrawRectangle(INV_X, INV_Y, INV_W, INV_H, rl.Color{0, 8, 20, 235})
+	rl.DrawRectangleLinesEx(
+		rl.Rectangle{f32(INV_X), f32(INV_Y), f32(INV_W), f32(INV_H)},
+		1,
+		rl.Color{40, 60, 100, 255},
+	)
+	rl.DrawText("[ INVENTORY ]", INV_X + 10, INV_Y + 8, INV_FONT, rl.WHITE)
+	rl.DrawLine(INV_X, INV_Y + 28, INV_X + INV_W, INV_Y + 28, rl.Color{40, 60, 100, 255})
+
+	if len(pd.inventory) == 0 {
+		rl.DrawText("(empty)", INV_X + 10, INV_Y + 38, INV_FONT, rl.GRAY)
+	}
+	for i in 0 ..< len(pd.inventory) {
+		item := pd.inventory[i]
+		y := INV_Y + 36 + i32(i) * INV_LINE_H
+		color := rl.WHITE
+
+		if state.selected_idx == i {
+			rl.DrawRectangle(INV_X + 4, y - 1, INV_W - 8, INV_LINE_H, rl.Color{30, 70, 120, 200})
+			color = rl.YELLOW
+		}
+
+		letter := fmt.ctprintf("%c)", rune('a') + rune(i))
+		rl.DrawText(letter, INV_X + 10, y, INV_FONT, color)
+		rl.DrawText(fmt.ctprintf("%s", item_name(item)), INV_X + 34, y, INV_FONT, color)
+	}
+
+	// Bottom action bar
+	bar_y := INV_Y + INV_H - 28
+	rl.DrawLine(INV_X, bar_y, INV_X + INV_W, bar_y, rl.Color{40, 60, 100, 255})
+
+	if state.selected_idx >= 0 && state.selected_idx < len(pd.inventory) {
+		item := pd.inventory[state.selected_idx]
+		switch _ in item.data {
+		case Potion_Data:
+			rl.DrawText(
+				"[d]rink  [D]rop  [Esc]cancel",
+				INV_X + 10,
+				bar_y + 6,
+				INV_FONT,
+				rl.Color{160, 160, 180, 255},
+			)
+		case Scroll_Data:
+			rl.DrawText(
+				"[r]ead  [D]rop  [Esc]cancel",
+				INV_X + 10,
+				bar_y + 6,
+				INV_FONT,
+				rl.Color{160, 160, 180, 255},
+			)
+		}
+	} else {
+		rl.DrawText(
+			"[a-z] select item  [Esc] close",
+			INV_X + 10,
+			bar_y + 6,
+			INV_FONT,
+			rl.Color{100, 100, 120, 255},
+		)
+	}
+}
+
+inventory_kill :: proc(sm: ^State_Manager, data: rawptr) {
+	free((^Inventory_State)(data))
+}
+
 // --- Input Handling ---
 handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 	player := get_player(game)
-
 	shift := rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT)
 
 	next_x := player.x

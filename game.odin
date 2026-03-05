@@ -118,6 +118,92 @@ Item_Data :: union {
 	Scroll_Data,
 }
 
+item_name :: proc(item: Item) -> string {
+	switch d in item.data {
+	case Potion_Data:
+		switch d.type {
+		case .Healing:
+			return "Potion of Healing"
+		case .Fuel:
+			return "Oil Flask"
+		case .Clarity:
+			return "Potion of Clarity"
+		case .Blindness:
+			return "Potion of Blindness"
+		case .Confusion:
+			return "Potion of Confusion"
+		case .Fire:
+			return "Fire Potion"
+		case .Darkness:
+			return "Potion of Darkness"
+		}
+	case Scroll_Data:
+		switch d.type {
+		case .Map_Reveal:
+			return "Scroll of Revelation"
+		case .Enchantment:
+			return "Scroll of Enchantment"
+		case .Hostile_Tracking:
+			return "Scroll of Tracking"
+		case .Identify:
+			return "Scroll of Identify"
+		case .Summoning:
+			return "Scroll of Summoning"
+		}
+	}
+	return "Unknown Item"
+}
+
+use_item :: proc(game: ^Game, idx: int) {
+	player := get_player(game)
+	pd := &player.data.(Player_Data)
+	if idx < 0 || idx >= len(pd.inventory) {return}
+	item := pd.inventory[idx]
+
+	switch d in item.data {
+	case Potion_Data:
+	#partial	switch d.type {
+		case .Healing:
+			healed := min(10, player.max_hp - player.hp)
+			player.hp += healed
+			log_messagef(game, "The potion mends your wounds. (+%d HP)", healed)
+		case .Fuel:
+			added := min(100, pd.lantern.max_fuel - pd.lantern.fuel)
+			pd.lantern.state = .Empty;{pd.lantern.state = .Lit}
+			log_messagef(game, "You refuel the lantern. (+%d)", added)
+		case .Clarity, .Blindness, .Confusion, .Fire, .Darkness:
+			log_messagef(game, "You drink the potion. (TODO copy from main game)")
+		}
+	case Scroll_Data:
+		switch d.type {
+		case .Map_Reveal:
+			for y in 0 ..< game.map_height {
+				for x in 0 ..< game.map_width {
+					game.revealed[y][x] = true
+				}
+			}
+			log_messagef(game, "The map floods your mind!")
+		case .Enchantment, .Hostile_Tracking, .Identify, .Summoning:
+			log_messagef(game, "You read the scroll. TODO")
+		}
+	}
+
+	unordered_remove(&pd.inventory, idx)
+}
+
+drop_item :: proc(game: ^Game, idx: int) {
+	player := get_player(game)
+	pd := &player.data.(Player_Data)
+	if idx < 0 || idx >= len(pd.inventory) { return }
+	item := pd.inventory[idx]
+	item.x = player.x
+	item.y = player.y
+	append(&game.items,item)
+	log_messagef(game, "You drop the %s.", item_name(item))
+	unordered_remove(&pd.inventory, idx)
+
+}
+
 AI_State :: enum {
 	Idle,
 	Hunting,
@@ -260,45 +346,46 @@ Trap :: struct {
 }
 
 Game :: struct {
-	map_width:        int,
-	map_height:       int,
-	tiles:            [dynamic][dynamic]Tile,
-	revealed:         [dynamic][dynamic]bool,
-	visible:          [dynamic][dynamic]bool,
-	light_map:        [dynamic][dynamic]rl.Color,
-	actors:           [dynamic]Actor,
-	player_index:     int, // Index of player in actors array (always 0)
-	camera:           Camera,
-	turn_count:       int,
-	current_time:     int,
-	scheduler:        Scheduler,
+	map_width:         int,
+	map_height:        int,
+	tiles:             [dynamic][dynamic]Tile,
+	revealed:          [dynamic][dynamic]bool,
+	visible:           [dynamic][dynamic]bool,
+	light_map:         [dynamic][dynamic]rl.Color,
+	actors:            [dynamic]Actor,
+	player_index:      int, // Index of player in actors array (always 0)
+	camera:            Camera,
+	turn_count:        int,
+	current_time:      int,
+	scheduler:         Scheduler,
 	// Map gen stuff
-	treasure_room:    Maybe(Rectangle),
-	pedestal:         Maybe(Boon_Pedistal),
-	gold_piles:       [dynamic]Gold_Pile,
+	treasure_room:     Maybe(Rectangle),
+	pedestal:          Maybe(Boon_Pedistal),
+	gold_piles:        [dynamic]Gold_Pile,
 	// quitter
-	quit:             bool,
-	wants_restart:    bool,
+	quit:              bool,
+	wants_restart:     bool,
 	// Traps
-	traps:            [dynamic]Trap,
+	traps:             [dynamic]Trap,
 	// Items / inv
-	items:            [dynamic]Item,
+	items:             [dynamic]Item,
 	// status
-	last_action_cost: int,
-	current_floor:    int,
-	death_cause:      string, // "Thrall", "Wolf" - set when player dies
-	enemies_slain:    int,
-	wraith_spawned:   bool,
+	last_action_cost:  int,
+	current_floor:     int,
+	death_cause:       string, // "Thrall", "Wolf" - set when player dies
+	enemies_slain:     int,
+	next_wraith_spawn: int,
+	wraith_count:      int,
 	// log/debug
-	logger:           Logger,
-	debug_throttles:  map[string]Debug_Throttle,
-	crash_logger:     Logger,
-	game_log:         Message_Log,
-	combat_log:       Message_Log,
-	debug_log:        Message_Log,
+	logger:            Logger,
+	debug_throttles:   map[string]Debug_Throttle,
+	crash_logger:      Logger,
+	game_log:          Message_Log,
+	combat_log:        Message_Log,
+	debug_log:         Message_Log,
 
 	// Debug: Track how many times each tile receives light
-	light_hit_count:  [dynamic][dynamic]int,
+	light_hit_count:   [dynamic][dynamic]int,
 }
 
 init_game :: proc(width, height: int) -> Game {
@@ -462,7 +549,8 @@ restart_game :: proc(game: ^Game) {
 	clear(&game.traps)
 	clear(&game.gold_piles)
 	clear(&game.items)
-	game.wraith_spawned = false
+	game.next_wraith_spawn = 150
+	game.wraith_count = 0
 
 	if pd, ok := &get_player(game).data.(Player_Data); ok {
 		clear(&pd.inventory)
@@ -737,7 +825,8 @@ descend_floor :: proc(game: ^Game) {
 	clear(&game.traps)
 	clear(&game.gold_piles)
 	clear(&game.items)
-	game.wraith_spawned = false
+	game.next_wraith_spawn = 150
+	game.wraith_count = 0
 
 	// Generate new floor
 	generate_dungeon(game)
@@ -782,7 +871,8 @@ ascend_floor :: proc(game: ^Game) {
 	clear(&game.traps)
 	clear(&game.gold_piles)
 	clear(&game.items)
-	game.wraith_spawned = false
+	game.next_wraith_spawn = 150
+	game.wraith_count = 0
 
 	// Generate new floor
 	generate_dungeon(game)

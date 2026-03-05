@@ -220,6 +220,25 @@ draw_debug_info :: proc(game: ^Game) {
 	// actor count
 	rl.DrawText(rl.TextFormat("Actors: %d", len(game.actors)), 10, y, font_size, rl.WHITE)
 	y += spacing
+	// Enemy scaling amount -- do scale factor to (strength+) when we wire that in TODO
+	enemy_count := len(game.actors) - 1 // minus player
+	rl.DrawText(
+		rl.TextFormat("Enemies: %d (scale: %d)", enemy_count, 6 + game.current_floor * 2),
+		10,
+		y,
+		font_size,
+		rl.WHITE,
+	)
+	y += spacing
+	//Wraith
+	rl.DrawText(
+		rl.TextFormat("Wraith: next@%d (now:%d)", game.next_wraith_spawn, game.turn_count),
+		10,
+		y,
+		font_size,
+		rl.WHITE,
+	)
+	y += spacing
 	// scheduler count
 	rl.DrawText(
 		rl.TextFormat("Scheduled: %d", len(game.scheduler.actors)),
@@ -413,8 +432,7 @@ draw_hud :: proc(game: ^Game) {
 		y2,
 		FONT_SIZE,
 		sample_color(GOLD_COLOR),
-
-)
+	)
 
 	lantern_label: cstring
 	lantern_color: rl.Color
@@ -500,6 +518,31 @@ draw_traps :: proc(game: ^Game) {
 			i32(screen_y * TILE_SIZE + MAP_AREA_Y + 2),
 			20,
 			sample_color(get_trap_color(trap.type)),
+		)
+	}
+}
+
+draw_items :: proc(game: ^Game) {
+	for item in game.items {
+		if !game.visible[item.y][item.x] {continue}
+		sx, sy, in_view := world_to_screen(game.camera, item.x, item.y)
+		if !in_view {continue}
+		char: cstring
+		color: Color_Range
+		switch _ in item.data {
+		case Potion_Data:
+			char = "!"
+			color = POTION_COLOR
+		case Scroll_Data:
+			char = "?"
+			color = SCROLL_COLOR
+		}
+		rl.DrawText(
+			char,
+			i32(sx * TILE_SIZE + 4),
+			i32(sy * TILE_SIZE + MAP_AREA_Y + 2),
+			20,
+			sample_color(color),
 		)
 	}
 }

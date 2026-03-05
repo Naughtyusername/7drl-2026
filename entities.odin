@@ -269,16 +269,23 @@ make_shade :: proc(id, x, y: int) -> Actor {
 
 make_wraith :: proc(id, x, y: int) -> Actor {
 	return Actor {
-		id = id, x = x, y = y,
-		hp = 20, max_hp = 20, alive = true, speed = 80,
+		id = id,
+		x = x,
+		y = y,
+		hp = 20,
+		max_hp = 20,
+		alive = true,
+		speed = 80,
 		data = Enemy_Data {
-			name = "Wraith", char = "W",
+			name = "Wraith",
+			char = "W",
 			color = sample_color(WRAITH_COLOR),
-			damage = 8, enemy_type = .Wraith,
+			damage = 8,
+			enemy_type = .Wraith,
 			vision_range = 20,
 			tags = {.Dark_Vision, .Carries_Light},
 		},
-}
+	}
 }
 
 check_trap :: proc(game: ^Game, actor: ^Actor) {
@@ -359,6 +366,49 @@ place_player :: proc(game: ^Game) {
 				break
 			}
 		}
+	}
+}
+
+spawn_items :: proc(game: ^Game) {
+	player := get_player(game)
+	count := 2 + rand.int_max(3) // 2-4 items per floor to start
+	next_id := len(game.actors) + 1000 // avoid id collisions with actors
+
+	for i in 0 ..< count {
+		x, y: int
+		for a := 0; a < 1000; a += 1 {
+			x = rand.int_max(game.map_width)
+			y = rand.int_max(game.map_height)
+			if game.tiles[y][x] == .Floor && (x != player.x || y != player.y) {
+				break
+			}
+		}
+		// Bias toward potions early, more scrolls later - enchant might be too good
+		roll := rand.float32()
+		item: Item
+		if roll < 0.5 {
+			item = Item {
+				id = next_id + i,
+				data = Potion_Data{type = .Healing},
+				x = x,
+				y = y,
+			}
+		} else if roll < 0.75 {
+			item = Item {
+				id = next_id + i,
+				data = Potion_Data{type = .Fuel},
+				x = x,
+				y = y,
+			}
+		} else {
+			item = Item {
+				id = next_id + i,
+				data = Scroll_Data{type = .Map_Reveal},
+				x = x,
+				y = y,
+			}
+		}
+		append(&game.items, item)
 	}
 }
 
