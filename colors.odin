@@ -43,6 +43,13 @@ STAIRS :: Color_Range{230, 200, 100, 10, 10, 5, 15, true}
 // More sacred, cooler color, with faser dancing, similar to stairs goldish
 PEDESTAL_COLOR :: Color_Range{180, 120, 255, 15, 10, 20, 12, true}
 
+// Trap colors ^
+TRAP_SPIKE_COLOR :: Color_Range{180, 60, 30, 10, 5, 5, 5, false}
+TRAP_SNARE_COLOR :: Color_Range{120, 90, 40, 8, 8, 5, 4, false}
+TRAP_ALARM_COLOR :: Color_Range{200, 180, 50, 10, 10, 5, 8, true}
+TRAP_GAS_COLOR :: Color_Range{80, 180, 60, 8, 15, 8, 6, true}
+TRAP_PIT_COLOR :: Color_Range{30, 20, 15, 5, 5, 3, 3, false}
+
 // Fog of war — flat, no variance
 FOG :: Color_Range{8, 12, 25, 0, 0, 0, 0, false}
 

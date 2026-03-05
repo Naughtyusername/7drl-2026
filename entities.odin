@@ -31,6 +31,7 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 			enemy_data.last_known_y = player.y
 		}
 
+		// astar a*
 		next_x, next_y, found := astar_step(
 			game,
 			actor.x,
@@ -47,6 +48,7 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 			if get_enemy_at(game, next_x, next_y) != nil {return .Wait}
 			actor.x = next_x
 			actor.y = next_y
+			check_trap(game, actor)
 			return .Move
 		}
 

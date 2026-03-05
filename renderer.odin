@@ -436,3 +436,42 @@ draw_pedestal :: proc(game: ^Game) {
 		sample_color(PEDESTAL_COLOR),
 	)
 }
+
+get_trap_color :: proc(type: Trap_Type) -> Color_Range {
+	switch type {
+	case .Spike:
+		return TRAP_SPIKE_COLOR
+	case .Snare:
+		return TRAP_SNARE_COLOR
+	case .Alarm:
+		return TRAP_ALARM_COLOR
+	case .Gas:
+		return TRAP_GAS_COLOR
+	case .Pit:
+		return TRAP_PIT_COLOR
+	}
+	return TRAP_SPIKE_COLOR
+}
+
+draw_traps :: proc(game: ^Game) {
+	player := get_player(game)
+	player_data := player.data.(Player_Data)
+	has_trap_sight := .Trap_Sight in player_data.boons
+
+	for trap in game.traps {
+		if trap.triggered {continue}
+		if !game.visible[trap.y][trap.y] {continue}
+		if !trap.revealed && !has_trap_sight {continue}
+
+		screen_x, screen_y, in_view := world_to_screen(game.camera, trap.x, trap.y)
+		if !in_view {continue}
+
+		rl.DrawText(
+			"^",
+			i32(screen_x * TILE_SIZE + 4),
+			i32(screen_y * TILE_SIZE + MAP_AREA_Y + 2),
+			20,
+			sample_color(get_trap_color(trap.type)),
+		)
+	}
+}

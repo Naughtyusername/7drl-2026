@@ -295,6 +295,7 @@ playing_draw :: proc(sm: ^State_Manager, data: rawptr) {
 	draw_message_area(game) // topbar
 	draw_map(game) // worldmap
 	draw_pedestal(game)
+	draw_traps(game)
 	draw_enemies(game)
 	draw_player(game)
 	draw_hud(game) // bottom bar ui/hud
@@ -527,7 +528,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 		return Action_Result{action = .Wait, cost = BASE_SPEED}
 	}
 
-	// Movement
+	// Movement / Bounds checking
 	if next_x != player.x || next_y != player.y {
 		if pd, ok := &player.data.(Player_Data); ok {
 			pd.last_dx = next_x - player.x
@@ -553,6 +554,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 
 		target_tile := get_tile(game, next_x, next_y)
 
+		// Player movement
 		if target_tile != .Wall {
 			if target := get_enemy_at(game, next_x, next_y); target != nil {
 				resolve_player_attack(game, player, target)
@@ -560,6 +562,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 			}
 			player.x = next_x
 			player.y = next_y
+			check_trap(game, player)
 			return Action_Result{action = .Move, cost = BASE_SPEED}
 		}
 		log_messagef(game, "You bump into the wall.")
