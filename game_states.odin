@@ -159,17 +159,9 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			game.map_height,
 		)
 
-		// Enemy lights
-		for &ea in game.actors {
-			if !ea.alive {continue}
-			ed, ok := ea.data.(Enemy_Data)
-			if !ok {continue}
-			if .Carries_Light not_in ed.tags {continue}
-			if ed.light_radius <= 0 {continue}
-			compute_fov(game, ea.x, ea.y, ed.light_radius, ed.light_radius)
-		}
 		fov_r, lantern_r := get_fov_radii(game)
 		compute_fov(game, get_player(game).x, get_player(game).y, fov_r, lantern_r)
+
 		game.turn_count = 0
 		return
 	}
@@ -248,15 +240,6 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				game.scheduler.current_time = actor.time_next
 				schedule_actor(&game.scheduler, actor)
 				drain_fuel(game)
-				// Enemy lights
-				for &ea in game.actors {
-					if !ea.alive {continue}
-					ed, ok := ea.data.(Enemy_Data)
-					if !ok {continue}
-					if .Carries_Light not_in ed.tags {continue}
-					if ed.light_radius <= 0 {continue}
-					compute_fov(game, ea.x, ea.y, ed.light_radius, ed.light_radius)
-				}
 				//FOV recompute
 				fov_r, lantern_r := get_fov_radii(game)
 				compute_fov(game, actor.x, actor.y, fov_r, lantern_r)
@@ -286,15 +269,6 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					fov_r = 1 // nearly blind
 				}
 
-				// Enemy lights
-				for &ea in game.actors {
-					if !ea.alive {continue}
-					ed, ed_ok := ea.data.(Enemy_Data)
-					if !ed_ok {continue}
-					if .Carries_Light not_in ed.tags {continue}
-					if ed.light_radius <= 0 {continue}
-					compute_fov(game, ea.x, ea.y, ed.light_radius, ed.light_radius)
-				}
 				center_camera(&game.camera, actor.x, actor.y, game.map_width, game.map_height)
 				compute_fov(game, actor.x, actor.y, fov_r, lantern_r)
 				game.turn_count += 1
