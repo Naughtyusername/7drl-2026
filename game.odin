@@ -272,6 +272,7 @@ Enemy_Data :: struct {
 	char:         cstring,
 	damage:       int,
 	vision_range: int,
+	light_radius: int,
 	enemy_type:   Enemy_Type,
 	ai_state:     AI_State,
 	tags:         bit_set[Enemy_Tag],

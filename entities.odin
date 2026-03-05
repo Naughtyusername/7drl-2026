@@ -14,7 +14,6 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 	player := get_player(game)
 	if !ok {return .Wait}
 
-	// TODO added a roaming ai, not handled yet
 	#partial switch enemy_data.ai_state {
 	// idle
 	case .Idle:
@@ -31,10 +30,26 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 			player_data := player.data.(Player_Data)
 			tile_lit := !is_dark(game.light_map[actor.y][actor.x])
 			if tile_lit && player_data.lantern.state == .Lit {
-				enemy_data.ai_state = .Fleeing;{
-					enemy_data.ai_state = .Idle
-				}
-
+				enemy_data.ai_state = .Fleeing
+			}
+		}
+	// Roam
+	case .Roaming:
+		// 1 in 4 chance to roam
+		if rand.int_max(4) == 0 {
+			directions := [8][2]int{}
+			dir_idx := rand.int_max(8)
+			dx := directions[dir_idx][0]
+			dy := directions[dir_idx][1]
+			nx := actor.x + dx
+			ny := actor.y + dy
+			if in_bounds(game, nx, ny) &&
+			   game.tiles[ny][nx] == .Floor &&
+			   get_enemy_at(game, nx, ny) == nil &&
+			   (nx != player.x || ny != player.y) {
+				actor.x = nx
+				actor.y = ny
+				   return .Move
 			}
 		}
 	// hunting
@@ -91,8 +106,6 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 			check_trap(game, actor)
 			return .Move
 		}
-	//Roaming
-	// TODO
 	}
 	return .Wait
 }
@@ -201,6 +214,7 @@ make_thrall :: proc(id, x, y: int) -> Actor {
 			damage = 3,
 			enemy_type = .Thrall,
 			vision_range = 8,
+			light_radius = 3,
 			tags = {.Carries_Light},
 		},
 	}
@@ -283,6 +297,7 @@ make_wraith :: proc(id, x, y: int) -> Actor {
 			damage = 8,
 			enemy_type = .Wraith,
 			vision_range = 20,
+			light_radius = 5,
 			tags = {.Dark_Vision, .Carries_Light},
 		},
 	}
