@@ -409,6 +409,30 @@ paused_kill :: proc(sm: ^State_Manager, data: rawptr) {
 	free(state)
 }
 
+try_pickup_item :: proc(game: ^Game) {
+	player := get_player(game)
+	pd := &player.data.(Player_Data)
+	for i := len(game.items) - 1; i >= 0; i -= 1 {
+		item := game.items[i]
+		if item.x == player.x && item.y == player.y {
+			if len(pd.inventory) >= 26 {
+				log_messagef(game, "Your pack is full.")
+				break
+			}
+			item.x = 0;item.y = 0 // clear ground positions
+			append(&pd.inventory, item)
+			// Name thitm based on type
+			switch d in item.data {
+			case Potion_Data:
+				log_messagef(game, "You pick up a potion.")
+			case Scroll_Data:
+				log_messagef(game, "You pick up a scroll.")
+			}
+			unordered_remove(&game.items, i)
+		}
+	}
+}
+
 // --- Input Handling ---
 handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 	player := get_player(game)
@@ -593,6 +617,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 			player.y = next_y
 			check_trap(game, player)
 			try_pickup_gold(game)
+			try_pickup_item(game)
 			return Action_Result{action = .Move, cost = BASE_SPEED}
 		}
 		log_messagef(game, "You bump into the wall.")

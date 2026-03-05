@@ -162,6 +162,7 @@ Player_Data :: struct {
 	char:          cstring,
 	lantern:       Lantern,
 	gold:          int,
+	inventory:     [dynamic]Item,
 	active_weapon: Weapon_Type, // TODO change to 1 to make whip default.
 	last_dx:       int,
 	last_dy:       int,
@@ -287,7 +288,7 @@ Game :: struct {
 	current_floor:    int,
 	death_cause:      string, // "Thrall", "Wolf" - set when player dies
 	enemies_slain:    int,
-	wraith_spawned: bool,
+	wraith_spawned:   bool,
 	// log/debug
 	logger:           Logger,
 	debug_throttles:  map[string]Debug_Throttle,
@@ -364,6 +365,9 @@ init_game :: proc(width, height: int) -> Game {
 		},
 	}
 	append(&game.actors, player)
+	if pd, ok := &game.actors[0].data.(Player_Data); ok {
+		pd.inventory = make([dynamic]Item, 0, 26) // a-z
+	}
 	game.player_index = 0 // TODO isnt player supposed to always be 1?... double check this is not broken
 
 	game.game_log = init_message_log(1000)
@@ -403,6 +407,11 @@ cleanup_game :: proc(game: ^Game) {
 		delete(game.revealed[i])
 		delete(game.visible[i])
 		delete(game.light_map[i])
+	}
+
+	player := get_player(game)
+	if pd, ok := &player.data.(Player_Data); ok {
+		delete(pd.inventory)
 	}
 
 	delete(game.tiles)
@@ -453,6 +462,11 @@ restart_game :: proc(game: ^Game) {
 	clear(&game.traps)
 	clear(&game.gold_piles)
 	clear(&game.items)
+	game.wraith_spawned = false
+
+	if pd, ok := &get_player(game).data.(Player_Data); ok {
+		clear(&pd.inventory)
+	}
 
 	resize(&game.actors, 1)
 	generate_dungeon(game)
@@ -723,6 +737,7 @@ descend_floor :: proc(game: ^Game) {
 	clear(&game.traps)
 	clear(&game.gold_piles)
 	clear(&game.items)
+	game.wraith_spawned = false
 
 	// Generate new floor
 	generate_dungeon(game)
@@ -767,6 +782,7 @@ ascend_floor :: proc(game: ^Game) {
 	clear(&game.traps)
 	clear(&game.gold_piles)
 	clear(&game.items)
+	game.wraith_spawned = false
 
 	// Generate new floor
 	generate_dungeon(game)
