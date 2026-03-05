@@ -81,6 +81,24 @@ Enemy_Type :: enum {
 	Wraith,
 }
 
+Potion_Type :: enum {
+	Healing,
+	Fuel,
+	Clarity,
+	Blindness,
+	Confusion,
+	Fire,
+	Darkness,
+}
+
+Scroll_Type :: enum {
+	Enchantment,
+	Map_Reveal,
+	Hostile_Tracking,
+	Identify,
+	Summoning, // id items might get nixed.
+_}
+
 AI_State :: enum {
 	Idle,
 	Hunting,
@@ -122,6 +140,7 @@ Player_Data :: struct {
 	color:         rl.Color,
 	char:          cstring,
 	lantern:       Lantern,
+	gold:          int,
 	active_weapon: Weapon_Type, // TODO change to 1 to make whip default.
 	last_dx:       int,
 	last_dy:       int,
@@ -197,19 +216,25 @@ Boon_Pedistal :: struct {
 	x, y:   int,
 	active: bool,
 }
+
+Gold_Pile :: struct {
+	x, y:   int,
+	amount: int,
+}
+
 Trap_Type :: enum {
-    Spike,
-    Snare,
-    Alarm,
-    Gas,
-    Pit,
+	Spike,
+	Snare,
+	Alarm,
+	Gas,
+	Pit,
 }
 
 Trap :: struct {
-    x, y: int,
-    type: Trap_Type,
-    revealed: bool,
-    triggered: bool,
+	x, y:      int,
+	type:      Trap_Type,
+	revealed:  bool,
+	triggered: bool,
 }
 
 Game :: struct {
@@ -228,11 +253,12 @@ Game :: struct {
 	// Map gen stuff
 	treasure_room:    Maybe(Rectangle),
 	pedestal:         Maybe(Boon_Pedistal),
+	gold_piles:       [dynamic]Gold_Pile,
 	// quitter
 	quit:             bool,
 	wants_restart:    bool,
-    // Traps
-    traps: [dynamic]Trap,
+	// Traps
+	traps:            [dynamic]Trap,
 	// status
 	last_action_cost: int,
 	current_floor:    int,
@@ -275,13 +301,16 @@ init_game :: proc(width, height: int) -> Game {
 		game.light_map[i] = make([dynamic]rl.Color, width)
 	}
 
-    // eventually increase the size of this... TODO this will leak / break otherwise
+	// eventually increase the size of this... TODO this will leak / break otherwise
 	game.actors = make([dynamic]Actor, 0, 50)
 
-    // Traps
-    game.traps = make([dynamic]Trap, 0, 32)
+	// Traps
+	game.traps = make([dynamic]Trap, 0, 32)
 
-    // Camera
+	// Gold piles
+	game.gold_piles = make([dynamic]Gold_Pile, 0, 16)
+
+	// Camera
 	game.camera = Camera {
 		x               = 0,
 		y               = 0,
@@ -289,7 +318,7 @@ init_game :: proc(width, height: int) -> Game {
 		viewport_height = VIEWPORT_HEIGHT,
 	}
 
-    // Player Init
+	// Player Init
 	player := Actor {
 		id = 0,
 		x = width / 2,
@@ -356,6 +385,7 @@ cleanup_game :: proc(game: ^Game) {
 	delete(game.actors)
 	delete(game.scheduler.actors)
 	delete(game.traps)
+	delete(game.gold_piles)
 
 	cleanup_messages_log(&game.game_log)
 	cleanup_messages_log(&game.combat_log)
@@ -389,8 +419,11 @@ restart_game :: proc(game: ^Game) {
 		}
 	}
 
+	// Clean up map before generate dungeon replaces things
 	game.treasure_room = nil
 	game.pedestal = nil
+	clear(&game.traps)
+	clear(&game.gold_piles)
 
 	resize(&game.actors, 1)
 	generate_dungeon(game)
@@ -649,10 +682,11 @@ descend_floor :: proc(game: ^Game) {
 	// keep only the player
 	resize(&game.actors, 1)
 
-    // Clean up map before generate dungeon replaces things
+	// Clean up map before generate dungeon replaces things
 	game.treasure_room = nil
 	game.pedestal = nil
-    clear(&game.traps)
+	clear(&game.traps)
+	clear(&game.gold_piles)
 
 	// Generate new floor
 	generate_dungeon(game)
@@ -691,8 +725,11 @@ ascend_floor :: proc(game: ^Game) {
 	// keep only the player
 	resize(&game.actors, 1)
 
+	// Clean up map before generate dungeon replaces things
 	game.treasure_room = nil
 	game.pedestal = nil
+	clear(&game.traps)
+	clear(&game.gold_piles)
 
 	// Generate new floor
 	generate_dungeon(game)
@@ -756,4 +793,18 @@ boon_name :: proc(boon: Player_Boon) -> string {
 		return "Blood Scent"
 	}
 	return "Unknown Boon"
+}
+
+try_pickup_gold :: proc(game: ^Game) {
+	player := get_player(game)
+	pd := &player.data.(Player_Data)
+
+	for i := len(game.gold_piles) - 1; i >= 0; i -= 1 {
+		pile := game.gold_piles[i]
+		if pile.x == player.x && pile.y == player.y {
+			pd.gold += pile.amount
+			log_messagef(game, "You pocket %d gold.", pile.amount)
+			unordered_remove(&game.gold_piles, i)
+		}
+	}
 }

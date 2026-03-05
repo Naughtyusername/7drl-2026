@@ -2,6 +2,8 @@ package sdrl
 
 import "core:fmt"
 import rl "vendor:raylib"
+HUD_X_TURNS :: 0
+HUD_X_GOLD :: HUD_X_TURNS + 80
 
 draw_map :: proc(game: ^Game) {
 	min_x, min_y, max_x, max_y := get_viewport_bounds(game.camera)
@@ -394,7 +396,9 @@ draw_hud :: proc(game: ^Game) {
 	rl.DrawText(fmt.ctprintf("Wep[%s]", base_name), 560, y1, FONT_SIZE, rl.WHITE)
 
 	// === Line 2: game state ===
+	// floor
 	rl.DrawText(fmt.ctprintf("Fl:%d", game.current_floor), 10, y2, FONT_SIZE, rl.WHITE)
+	// turns
 	rl.DrawText(
 		fmt.ctprintf("T:%d", game.turn_count),
 		80,
@@ -402,6 +406,15 @@ draw_hud :: proc(game: ^Game) {
 		FONT_SIZE,
 		rl.Color{100, 100, 120, 255},
 	)
+	// gold
+	rl.DrawText(
+		fmt.ctprintf("G:%d", player_data.gold),
+		HUD_X_GOLD,
+		y2,
+		FONT_SIZE,
+		sample_color(GOLD_COLOR),
+
+)
 
 	lantern_label: cstring
 	lantern_color: rl.Color
@@ -435,6 +448,21 @@ draw_pedestal :: proc(game: ^Game) {
 		20,
 		sample_color(PEDESTAL_COLOR),
 	)
+}
+
+draw_gold_piles :: proc(game: ^Game) {
+	for pile in game.gold_piles {
+		if !game.visible[pile.y][pile.x] {continue}
+		screen_x, screen_y, in_view := world_to_screen(game.camera, pile.x, pile.y)
+		if !in_view {continue}
+		rl.DrawText(
+			"$",
+			i32(screen_x * TILE_SIZE + 4),
+			i32(screen_y * TILE_SIZE + MAP_AREA_Y + 2),
+			20,
+			sample_color(GOLD_COLOR),
+		)
+	}
 }
 
 get_trap_color :: proc(type: Trap_Type) -> Color_Range {

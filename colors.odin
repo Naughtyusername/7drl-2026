@@ -43,6 +43,9 @@ STAIRS :: Color_Range{230, 200, 100, 10, 10, 5, 15, true}
 // More sacred, cooler color, with faser dancing, similar to stairs goldish
 PEDESTAL_COLOR :: Color_Range{180, 120, 255, 15, 10, 20, 12, true}
 
+// More sacred, cooler color, with faser dancing, similar to stairs goldish
+GOLD_COLOR :: Color_Range{255, 215, 0, 10, 10, 5, 8, true}
+
 // Trap colors ^
 TRAP_SPIKE_COLOR :: Color_Range{180, 60, 30, 10, 5, 5, 5, false}
 TRAP_SNARE_COLOR :: Color_Range{120, 90, 40, 8, 8, 5, 4, false}

@@ -296,6 +296,7 @@ playing_draw :: proc(sm: ^State_Manager, data: rawptr) {
 	draw_map(game) // worldmap
 	draw_pedestal(game)
 	draw_traps(game)
+	draw_gold_piles(game)
 	draw_enemies(game)
 	draw_player(game)
 	draw_hud(game) // bottom bar ui/hud
@@ -563,6 +564,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 			player.x = next_x
 			player.y = next_y
 			check_trap(game, player)
+			try_pickup_gold(game)
 			return Action_Result{action = .Move, cost = BASE_SPEED}
 		}
 		log_messagef(game, "You bump into the wall.")

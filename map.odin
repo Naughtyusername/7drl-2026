@@ -139,13 +139,13 @@ generate_dungeon :: proc(game: ^Game) {
 		place_player(game)
 	}
 
+	// map placement
 	place_stairs(game)
 	spawn_enemies(game, 10)
-
 	place_traps(game)
+	spawn_gold_piles(game)
 
 	dump_map_ascii(game, "./logs/map.txt")
-
 	log_messagef(game, "The dungeon shift around you...")
 }
 

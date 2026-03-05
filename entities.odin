@@ -127,6 +127,24 @@ spawn_enemies :: proc(game: ^Game, count: int) {
 
 }
 
+spawn_gold_piles :: proc(game: ^Game) {
+	player := get_player(game)
+	count := 2 + rand.int_max(3)
+
+	for _ in 0 ..< count {
+		x, y: int
+		for attempts := 0; attempts < 1000; attempts += 1 {
+			x = rand.int_max(game.map_width)
+			y = rand.int_max(game.map_height)
+			if game.tiles[y][x] == .Floor && (x != player.x || y != player.y) {
+				break
+			}
+		}
+		amount := 20 + rand.int_max(41)
+		append(&game.gold_piles, Gold_Pile{x = x, y = y, amount = amount})
+	}
+}
+
 make_thrall :: proc(id, x, y: int) -> Actor {
 	return Actor {
 		id = id,
