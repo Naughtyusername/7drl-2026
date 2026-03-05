@@ -40,6 +40,9 @@ WATER :: Color_Range{15, 100, 140, 5, 15, 20, 8, true}
 // Bright warm gold, slight dancing to catch the eye
 STAIRS :: Color_Range{230, 200, 100, 10, 10, 5, 15, true}
 
+// More sacred, cooler color, with faser dancing, similar to stairs goldish
+PEDESTAL_COLOR :: Color_Range{180, 120, 255, 15, 10, 20, 12, true}
+
 // Fog of war — flat, no variance
 FOG :: Color_Range{8, 12, 25, 0, 0, 0, 0, false}
 

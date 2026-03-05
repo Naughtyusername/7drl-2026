@@ -162,7 +162,7 @@ should_draw_enemy :: proc(game: ^Game, actor: ^Actor) -> (draw: bool, dimmed: bo
 		return true, false
 	}
 
-	// dark tile but in FOV
+	// dark tile but in FOV ()
 	if .Carries_Light in enemy_data.tags {return true, false}
 	if .Large in enemy_data.tags {return true, true}
 	return false, false
@@ -417,4 +417,22 @@ draw_hud :: proc(game: ^Game) {
 		lantern_color = rl.Color{220, 40, 40, 255}
 	}
 	rl.DrawText(lantern_label, 200, y2, FONT_SIZE, lantern_color)
+}
+
+draw_pedestal :: proc(game: ^Game) {
+	ped, ok := game.pedestal.?
+	if !ok || !ped.active {return}
+
+	if !game.visible[ped.y][ped.x] {return}
+
+	screen_x, screen_y, in_view := world_to_screen(game.camera, ped.x, ped.y)
+	if !in_view {return}
+
+	rl.DrawText(
+		"*",
+		i32(screen_x * TILE_SIZE + 4),
+		i32(screen_y * TILE_SIZE + MAP_AREA_Y + 2),
+		20,
+		sample_color(PEDESTAL_COLOR),
+	)
 }

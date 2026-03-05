@@ -2,6 +2,7 @@ package sdrl
 
 import "core:fmt"
 import "core:math"
+import "core:math/rand"
 import rl "vendor:raylib"
 
 MAP_WIDTH :: 50
@@ -23,8 +24,8 @@ SCREEN_W :: VIEWPORT_WIDTH * TILE_SIZE
 SCREEN_H :: MSG_HEIGHT + (VIEWPORT_HEIGHT * TILE_SIZE) + HUD_HEIGHT
 
 // Map generation constants
-CA_WALL_PROB :: 0.42
-CA_SMOOTHING :: 5
+CA_WALL_PROB :: 0.52
+CA_SMOOTHING :: 3
 ROOM_COUNT_MIN :: 4
 ROOM_COUNT_MAX :: 7
 ROOM_SIZE_MIN :: 5
@@ -32,6 +33,7 @@ ROOM_SIZE_MAX :: 10
 
 MAX_LANTERN_RADIUS :: 8
 MAX_FOV_RADIUS :: 12 // how far player can see when not in darkness/blinded
+BASE_SPEED :: 100 // for speed based math calls that dont need go off of actor.speed, standard value
 
 // Mutable Variants
 fov_radius: int = 10 // TODO: dynamic lighting via lantern
@@ -54,8 +56,12 @@ Action :: enum {
 	Attack,
 	Wait,
 	PickupItem,
-	CastSpell,
 	UseItem,
+}
+
+Action_Result :: struct {
+	action: Action,
+	cost:   int,
 }
 
 Enemy_Tag :: enum {
@@ -119,6 +125,18 @@ Player_Data :: struct {
 	active_weapon: Weapon_Type, // TODO change to 1 to make whip default.
 	last_dx:       int,
 	last_dy:       int,
+	boons:         bit_set[Player_Boon],
+}
+
+Player_Boon :: enum {
+	Trap_Sight,
+	Fuel_Efficiency,
+	Quick_Hands,
+	Dark_Adapted,
+	Thick_Skin,
+	Iron_Lungs,
+	Keen_Nose,
+	Blood_Scent,
 }
 
 Enemy_Data :: struct {
@@ -127,11 +145,11 @@ Enemy_Data :: struct {
 	char:         cstring,
 	damage:       int,
 	vision_range: int,
-	enemy_type:    Enemy_Type,
-	ai_state:      AI_State,
-	tags:          bit_set[Enemy_Tag],
-	last_known_x:  int,
-	last_known_y:  int,
+	enemy_type:   Enemy_Type,
+	ai_state:     AI_State,
+	tags:         bit_set[Enemy_Tag],
+	last_known_x: int,
+	last_known_y: int,
 }
 
 Debug_Throttle :: struct {
@@ -150,16 +168,34 @@ Weapon_Stats :: struct {
 	max_range:        int,
 	get_weapon_stats: int,
 	ability_cost:     int,
+	swap_cost:        int,
 }
 
 get_weapon_stats :: proc(weapon: Weapon_Type) -> Weapon_Stats {
 	switch weapon {
 	case .Dagger:
-		return Weapon_Stats{damage = 6, speed = 80, max_range = 1, ability_cost = 0}
+		return Weapon_Stats {
+			damage = 6,
+			speed = 80,
+			max_range = 1,
+			ability_cost = 0,
+			swap_cost = 60,
+		}
 	case .Whip:
-		return Weapon_Stats{damage = 4, speed = 100, max_range = 3, ability_cost = 150}
+		return Weapon_Stats {
+			damage = 4,
+			speed = 100,
+			max_range = 3,
+			ability_cost = 150,
+			swap_cost = 120,
+		}
 	}
 	return Weapon_Stats{damage = 6, speed = 80, max_range = 1}
+}
+
+Boon_Pedistal :: struct {
+	x, y:   int,
+	active: bool,
 }
 
 Game :: struct {
@@ -175,6 +211,9 @@ Game :: struct {
 	turn_count:       int,
 	current_time:     int,
 	scheduler:        Scheduler,
+	// Map gen stuff
+	treasure_room:    Maybe(Rectangle),
+	pedestal:         Maybe(Boon_Pedistal),
 	// quitter
 	quit:             bool,
 	wants_restart:    bool,
@@ -327,6 +366,9 @@ restart_game :: proc(game: ^Game) {
 		}
 	}
 
+	game.treasure_room = nil
+	game.pedestal = nil
+
 	resize(&game.actors, 1)
 	generate_dungeon(game)
 
@@ -440,7 +482,11 @@ drain_fuel :: proc(game: ^Game) {
 
 	if data.lantern.state != .Lit {return}
 
-	data.lantern.fuel -= 1
+	if .Fuel_Efficiency in data.boons {
+		if game.turn_count % 2 == 0 {data.lantern.fuel -= 1}
+	} else {
+		data.lantern.fuel -= 1
+	}
 
 	// Threshold warnings
 	switch {
@@ -466,8 +512,6 @@ get_action_cost :: proc(action: Action) -> int {
 		return 100
 	case .PickupItem:
 		return 100
-	case .CastSpell:
-		return 150
 	case .UseItem:
 		return 100
 	}
@@ -582,6 +626,9 @@ descend_floor :: proc(game: ^Game) {
 	// keep only the player
 	resize(&game.actors, 1)
 
+	game.treasure_room = nil
+	game.pedestal = nil
+
 	// Generate new floor
 	generate_dungeon(game)
 
@@ -600,4 +647,48 @@ descend_floor :: proc(game: ^Game) {
 	player.hp = player.max_hp
 
 	log_messagef(game, "You descend to floor %d...", game.current_floor)
+}
+
+grant_random_boon :: proc(game: ^Game) {
+	player := get_player(game)
+	pd := &player.data.(Player_Data)
+
+	available: [8]Player_Boon
+	count := 0
+	for boon in Player_Boon {
+		if boon not_in pd.boons {
+			available[count] = boon
+			count += 1
+		}
+	}
+	if count == 0 {
+		log_messagef(game, "The pedestal has nothing more to offer.")
+		return
+	}
+
+	chosen := available[rand.int_max(count)]
+	pd.boons += {chosen}
+	log_messagef(game, "The altar grants you: %s", boon_name(chosen))
+}
+
+boon_name :: proc(boon: Player_Boon) -> string {
+	switch boon {
+	case .Trap_Sight:
+		return "Trap Sight"
+	case .Fuel_Efficiency:
+		return "Fuel Efficiency"
+	case .Quick_Hands:
+		return "Quick Hands"
+	case .Dark_Adapted:
+		return "Dark Adapted"
+	case .Thick_Skin:
+		return "Thick Skin"
+	case .Iron_Lungs:
+		return "Iron Lungs"
+	case .Keen_Nose:
+		return "Keen Nose"
+	case .Blood_Scent:
+		return "Blood Scent"
+	}
+	return "Unknown Boon"
 }

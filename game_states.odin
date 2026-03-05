@@ -180,6 +180,11 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			draw_debug_overlay = !draw_debug_overlay
 		}
 	}
+	when ODIN_DEBUG {
+		if rl.IsKeyPressed(.F5) {
+			grant_random_boon(game)
+		}
+	}
 
 	player_acted := false
 
@@ -188,14 +193,9 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 		if actor == nil {break}
 
 		if is_player(actor) {
-			if action, ok := handle_input(game).?; ok {
-				action_cost: int
-				if action == .Attack {
-					action_cost = game.last_action_cost
-				} else {
-					action_cost = get_action_cost(action)
-				}
-				actor.time_next += action_cost * 100 / actor.speed
+			if result, ok := handle_input(game).?; ok { 	// .? is odins Maybe/Optional wrapper
+				// try to unwrap this Maybe, if there is data, run it.
+				actor.time_next += result.cost * BASE_SPEED / actor.speed
 
 				game.current_time = actor.time_next
 				game.scheduler.current_time = actor.time_next
@@ -230,8 +230,8 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			// Stun handling
 			if actor.stunned_turns > 0 {
 				actor.stunned_turns -= 1
-				action_cost := get_action_cost(.Wait)
-				actor.time_next += action_cost * 100 / actor.speed
+				action_cost := 200 // TODO stun_duration
+				actor.time_next += action_cost * BASE_SPEED / actor.speed
 				game.current_time = actor.time_next
 				game.scheduler.current_time = actor.time_next
 				schedule_actor(&game.scheduler, actor)
@@ -256,7 +256,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				break
 			}
 			action_cost := get_action_cost(ai_action)
-			actor.time_next += action_cost * 100 / actor.speed
+			actor.time_next += action_cost * BASE_SPEED / actor.speed
 			game.current_time = actor.time_next
 			game.scheduler.current_time = actor.time_next
 			schedule_actor(&game.scheduler, actor)
@@ -269,6 +269,7 @@ playing_draw :: proc(sm: ^State_Manager, data: rawptr) {
 	game := state.game_ptr
 	draw_message_area(game) // topbar
 	draw_map(game) // worldmap
+	draw_pedestal(game)
 	draw_enemies(game)
 	draw_player(game)
 	draw_hud(game) // bottom bar ui/hud
@@ -354,7 +355,7 @@ paused_kill :: proc(sm: ^State_Manager, data: rawptr) {
 }
 
 // --- Input Handling ---
-handle_input :: proc(game: ^Game) -> Maybe(Action) {
+handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 	player := get_player(game)
 
 	shift := rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT)
@@ -390,6 +391,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 	if rl.IsKeyPressed(.UP) && !shift {next_y -= 1}
 	if rl.IsKeyPressed(.RIGHT) && !shift {next_x += 1}
 
+	// Weapon swap
 	if rl.IsKeyPressed(.TAB) {
 		if pd, ok := &player.data.(Player_Data); ok {
 			if pd.active_weapon == .Dagger {
@@ -400,8 +402,15 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 				log_messagef(game, "You pull your dagger")
 			}
 		}
-		return .Wait // TODO fix this later, return the proper time value based on how long
-		// it takes to swap (items will affect this when i get those in)
+		pd := &player.data.(Player_Data)
+		stats := get_weapon_stats(pd.active_weapon)
+		if .Quick_Hands in pd.boons {
+			swap_cost := stats.swap_cost / 2
+			return Action_Result{action = .Wait, cost = swap_cost}
+		} else {
+			game.last_action_cost = stats.swap_cost
+		}
+		return Action_Result{action = .Wait, cost = stats.swap_cost}
 	}
 
 	// Toggle lantern
@@ -423,7 +432,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 				log_messagef(game, "No fuel remains.")
 				return nil
 			}
-			return .Wait
+			return Action_Result{action = .Wait, cost = BASE_SPEED}
 		}
 	}
 
@@ -448,8 +457,7 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 				if e_data, ok := target.data.(Enemy_Data); ok {
 					log_messagef(game, "You trip the %s!", e_data.name)
 				}
-				game.last_action_cost = stats.ability_cost
-				return .Attack
+				return Action_Result{action = .Attack, cost = stats.ability_cost}
 			}
 		}
 		log_messagef(game, "No target in range.")
@@ -471,20 +479,27 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 			log_messagef(game, "Nothing to kick.")
 			return nil
 		}
-		game.last_action_cost = 100
 		resolve_kick(game, player, target, pd.last_dx, pd.last_dy)
-		return .Attack
+		return Action_Result{action = .Attack, cost = game.last_action_cost}
 	}
 
 	if rl.IsKeyPressed(.PERIOD) && shift {
 		player_tile := get_tile(game, player.x, player.y)
 		if player_tile == .Stairs_Down {
 			descend_floor(game)
-			return .Move // counts as an action
+			return Action_Result{action = .Move, cost = BASE_SPEED}
 		} else {
 			log_messagef(game, "There are no stairs here.")
 			return nil
 		}
+	}
+
+	// Treasure room / pedestal
+	if ped, ok := game.pedestal.?; ok && ped.active && next_x == ped.x && next_y == ped.y {
+		grant_random_boon(game)
+		ped.active = false
+		game.pedestal = ped // write back the modified copy
+		return Action_Result{action = .Wait, cost = BASE_SPEED}
 	}
 
 	// big boy logic
@@ -505,9 +520,8 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 				if get_tile(game, check_x, check_y) == .Wall {break}
 
 				if target := get_enemy_at(game, check_x, check_y); target != nil {
-					game.last_action_cost = 100 + (dist - 1) * 25
 					resolve_player_attack(game, player, target)
-					return .Attack
+					return Action_Result{action = .Attack, cost = game.last_action_cost}
 				}
 			}
 		}
@@ -517,18 +531,18 @@ handle_input :: proc(game: ^Game) -> Maybe(Action) {
 		if target_tile != .Wall {
 			if target := get_enemy_at(game, next_x, next_y); target != nil {
 				resolve_player_attack(game, player, target)
-				return .Attack
+				return Action_Result{action = .Attack, cost = game.last_action_cost}
 			}
 			player.x = next_x
 			player.y = next_y
-			return .Move
+			return Action_Result{action = .Move, cost = BASE_SPEED}
 		}
 		log_messagef(game, "You bump into the wall.")
 		return nil
 	}
 
 	if rl.IsKeyPressed(.PERIOD) {
-		return .Wait
+		return Action_Result{action = .Move, cost = BASE_SPEED}
 	}
 
 	return nil

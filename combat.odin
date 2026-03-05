@@ -17,9 +17,9 @@ resolve_player_attack :: proc(game: ^Game, attacker: ^Actor, target: ^Actor) {
 
 	stats := get_weapon_stats(player_data.active_weapon)
 	damage := stats.damage
-	if player_data.active_weapon != .Whip {
-		game.last_action_cost = stats.speed
-	}
+
+	// should set correct weapon speed for both
+	game.last_action_cost = stats.speed
 
 	target.hp -= damage
 	if enemy_data, e_ok := target.data.(Enemy_Data); e_ok {
