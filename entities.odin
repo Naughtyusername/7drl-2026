@@ -22,6 +22,8 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 			enemy_data.last_known_x = player.x
 			enemy_data.last_known_y = player.y
 			return .Wait
+		} else if !can_detect_player(game, actor) {
+			enemy_data.ai_state = .Roaming
 		}
 		if enemy_data.enemy_type == .Wolf {
 			alert_wolf_pack(game, actor)
@@ -35,9 +37,28 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 		}
 	// Roam
 	case .Roaming:
+		if can_detect_player(game, actor) {
+			enemy_data.ai_state = .Hunting
+			enemy_data.last_known_x = player.x
+			enemy_data.last_known_y = player.y
+			return .Wait
+		}
+		/* ROAM TABLE
+         { {-1,-1}, {0,-1}, {1,-1},
+         {-1, 0},/*skip the 5/0*/{1, 0},
+         {-1, 1}, {0, 1}, {1, 1} }*/
 		// 1 in 4 chance to roam
 		if rand.int_max(4) == 0 {
-			directions := [8][2]int{}
+			directions := [8][2]int {
+				{-1, -1},
+				{0, -1},
+				{1, -1},
+				{-1, 0},
+				{1, 0},
+				{-1, 1},
+				{0, 1},
+				{1, 1},
+			}
 			dir_idx := rand.int_max(8)
 			dx := directions[dir_idx][0]
 			dy := directions[dir_idx][1]
@@ -49,7 +70,7 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 			   (nx != player.x || ny != player.y) {
 				actor.x = nx
 				actor.y = ny
-				   return .Move
+				return .Move
 			}
 		}
 	// hunting
@@ -214,7 +235,7 @@ make_thrall :: proc(id, x, y: int) -> Actor {
 			damage = 3,
 			enemy_type = .Thrall,
 			vision_range = 8,
-			light_radius = 3,
+			light_radius = 5,
 			tags = {.Carries_Light},
 		},
 	}
@@ -297,7 +318,7 @@ make_wraith :: proc(id, x, y: int) -> Actor {
 			damage = 8,
 			enemy_type = .Wraith,
 			vision_range = 20,
-			light_radius = 5,
+			light_radius = 7,
 			tags = {.Dark_Vision, .Carries_Light},
 		},
 	}

@@ -253,6 +253,8 @@ Player_Data :: struct {
 	last_dx:       int,
 	last_dy:       int,
 	boons:         bit_set[Player_Boon],
+	sanity:        int,
+	// curses / negatives
 }
 
 Player_Boon :: enum {
@@ -450,6 +452,7 @@ init_game :: proc(width, height: int) -> Game {
 			active_weapon = .Whip,
 			last_dx = 0,
 			last_dy = 1,
+			sanity = 100,
 		},
 	}
 	append(&game.actors, player)

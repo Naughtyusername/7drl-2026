@@ -224,6 +224,20 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			log_messagef(game, "[DEBUG] Healed.")
 		}
 	}
+	when ODIN_DEBUG {
+		if rl.IsKeyPressed(.X) {
+			if pd, pd_ok := &get_player(game).data.(Player_Data); pd_ok {
+				pd.lantern.fuel = 300
+				log_messagef(game, "[DEBUG] Fueled.")
+			}
+		}
+	}
+	when ODIN_DEBUG {
+		if rl.IsKeyPressed(.C) {
+			// TODO  for testing
+			log_messagef(game, "[DEBUG] Wraithed.")
+		}
+	}
 
 	player_acted := false
 
@@ -284,7 +298,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				case .Extinguished:
 					fov_r = MAX_FOV_RADIUS // Can still see cave geometry
 				case .Empty:
-					fov_r = 1 // nearly blind
+					fov_r = 3 // nearly blind
 				}
 
 				center_camera(&game.camera, actor.x, actor.y, game.map_width, game.map_height)
@@ -308,6 +322,14 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					emit_light(game, ea.x, ea.y, ed.light_radius, lc)
 				}
 				game.turn_count += 1
+
+				// sanity drain
+				if pd, pd_ok := &get_player(game).data.(Player_Data); pd_ok {
+					if pd.lantern.state == .Empty {
+						pd.sanity = max(0, pd.sanity - 1)
+					}
+				}
+
 
 				WRAITH_SPAWN_INTERVAL_BASE :: 150
 				WRAITH_SPAWN_INTERVAL_MIN :: 80

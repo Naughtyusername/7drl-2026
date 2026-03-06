@@ -403,8 +403,7 @@ draw_hud :: proc(game: ^Game) {
 		get_resource_color(player_data.lantern.fuel, player_data.lantern.max_fuel),
 	)
 
-	rl.DrawText("San:0%", 460, y1, FONT_SIZE, rl.Color{0, 220, 230, 255}) //
-	// TODO: sanity
+	rl.DrawText(fmt.ctprintf("San:%d%%", player_data.sanity), 460, y1, FONT_SIZE, get_resource_color(player_data.sanity, 100))
 	base_name: cstring
 	switch player_data.active_weapon {
 	case .Dagger:
