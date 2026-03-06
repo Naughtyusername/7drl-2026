@@ -187,18 +187,41 @@ spawn_enemies :: proc(game: ^Game, count: int) {
 		}
 		actor: Actor
 		roll := rand.float32()
-		if game.current_floor >= 2 && roll < 0.15 {
-			actor = make_shade(len(game.actors), x, y)
-		} else if roll < 0.50 {
-			actor = make_thrall(len(game.actors), x, y)
-		} else if roll < 0.80 {
-			actor = make_wolf(len(game.actors), x, y)
+		// floor 5+
+		if game.current_floor >= 5 {
+			// deep floors: Knights, Wolves, Wraith, fodder.
+			if roll < 0.25 {
+				actor = make_skeleton_knight(len(game.actors), x, y)
+			} else if roll < 0.55 {
+				actor = make_wolf(len(game.actors), x, y)
+			} else if roll < 0.75 {
+				actor = make_shade(len(game.actors), x, y)
+			} else {
+				actor = make_lantern_pest(len(game.actors), x, y)
+			}
+			// floor 3+
+		} else if game.current_floor >= 3 {
+			if roll < 0.10 {
+				actor = make_shade(len(game.actors), x, y)
+			} else if roll < 0.55 {
+				actor = make_thrall(len(game.actors), x, y)
+			} else if roll < 0.80 {
+				actor = make_wolf(len(game.actors), x, y)
+			} else {
+				actor = make_lantern_pest(len(game.actors), x, y)
+			}
+			// floor 1-3
 		} else {
-			actor = make_lantern_pest(len(game.actors), x, y)
+			if roll < 0.55 {
+				actor = make_thrall(len(game.actors), x, y)
+			} else if roll < 0.85 {
+				actor = make_wolf(len(game.actors), x, y)
+			} else {
+				actor = make_lantern_pest(len(game.actors), x, y)
+			}
 		}
 		append(&game.actors, actor)
 	}
-
 }
 
 spawn_gold_piles :: proc(game: ^Game) {
