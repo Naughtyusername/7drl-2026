@@ -15,7 +15,7 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 	if !ok {return .Wait}
 
 	#partial switch enemy_data.ai_state {
-	// idle
+	// Idle
 	case .Idle:
 		if can_detect_player(game, actor) {
 			enemy_data.ai_state = .Hunting
@@ -298,6 +298,27 @@ make_shade :: proc(id, x, y: int) -> Actor {
 			enemy_type = .Shade,
 			vision_range = 12,
 			tags = {.Dark_Vision, .Stealthy},
+		},
+	}
+}
+
+make_skeleton_knight :: proc(id, x, y: int) -> Actor {
+	return Actor {
+		id = id,
+		x = x,
+		y = y,
+		hp = 18,
+		max_hp = 18,
+		alive = true,
+		speed = 100,
+		data = Enemy_Data {
+			name = "Skeleton Knight",
+			char = "K",
+			color = sample_color(SKELETON_KNIGHT_COLOR),
+			damage = 7,
+			vision_range = 7,
+			light_radius = 3,
+			tags = {},
 		},
 	}
 }

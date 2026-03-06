@@ -416,8 +416,8 @@ init_game :: proc(width, height: int) -> Game {
 		game.light_map[i] = make([dynamic]rl.Color, width)
 	}
 
-	// eventually increase the size of this... TODO this will leak / break otherwise
-	game.actors = make([dynamic]Actor, 0, 50)
+	// Actor allocation
+	game.actors = make([dynamic]Actor, 0, 300)
 
 	// Items / Inv
 	game.items = make([dynamic]Item, 0, 32)

@@ -232,10 +232,27 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			}
 		}
 	}
+
 	when ODIN_DEBUG {
 		if rl.IsKeyPressed(.C) {
-			// TODO  for testing
-			log_messagef(game, "[DEBUG] Wraithed.")
+			player := get_player(game)
+			wx, wy := player.x, player.y
+			outer: for dy in -5 ..= 5 {
+				for dx in -5 ..= 5 {
+					nx, ny := player.x + dx, player.y + dy
+					if in_bounds(game, nx, ny) &&
+					   game.tiles[ny][nx] == .Floor &&
+					   !enemy_at(game, nx, ny) {
+						wx, wy = nx, ny
+						   break outer // Odin's labled break, allows escape of both loops
+					}
+				}
+			}
+			wraith := make_wraith(len(game.actors), wx, wy)
+			append(&game.actors, wraith)
+			schedule_actor(&game.scheduler, &game.actors[len(game.actors) - 1])
+			game.wraith_count += 1
+			log_messagef(game, "[DEBUG] Wraith spawned.")
 		}
 	}
 
