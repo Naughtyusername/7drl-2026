@@ -244,7 +244,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					   game.tiles[ny][nx] == .Floor &&
 					   !enemy_at(game, nx, ny) {
 						wx, wy = nx, ny
-						   break outer // Odin's labled break, allows escape of both loops
+						break outer // Odin's labled break, allows escape of both loops
 					}
 				}
 			}
@@ -534,7 +534,7 @@ try_pickup_item :: proc(game: ^Game) {
 			item.x = 0;item.y = 0 // clear ground positions
 			append(&pd.inventory, item)
 			// Name thitm based on type
-			switch d in item.data {
+			#partial switch d in item.data {
 			case Potion_Data:
 				log_messagef(game, "You pick up a potion.")
 			case Scroll_Data:
@@ -648,7 +648,7 @@ inventory_draw :: proc(sm: ^State_Manager, data: rawptr) {
 
 	if state.selected_idx >= 0 && state.selected_idx < len(pd.inventory) {
 		item := pd.inventory[state.selected_idx]
-		switch _ in item.data {
+		#partial switch _ in item.data {
 		case Potion_Data:
 			rl.DrawText(
 				"[d]rink  [D]rop  [Esc]cancel",

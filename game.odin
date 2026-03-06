@@ -116,10 +116,11 @@ Item :: struct {
 Item_Data :: union {
 	Potion_Data,
 	Scroll_Data,
+	Ring_Data,
 }
 
 item_name :: proc(item: Item) -> string {
-	switch d in item.data {
+	#partial switch d in item.data {
 	case Potion_Data:
 		switch d.type {
 		case .Healing:
@@ -150,6 +151,11 @@ item_name :: proc(item: Item) -> string {
 		case .Summoning:
 			return "Scroll of Summoning"
 		}
+	//case Ring_Data:
+        // switch d.type {
+		// case .RingNames:
+
+		//}
 	}
 	return "Unknown Item"
 }
@@ -160,7 +166,7 @@ use_item :: proc(game: ^Game, idx: int) {
 	if idx < 0 || idx >= len(pd.inventory) {return}
 	item := pd.inventory[idx]
 
-	switch d in item.data {
+	#partial switch d in item.data {
 	case Potion_Data:
 		#partial switch d.type {
 		case .Healing:
@@ -202,6 +208,19 @@ drop_item :: proc(game: ^Game, idx: int) {
 	log_messagef(game, "You drop the %s.", item_name(item))
 	unordered_remove(&pd.inventory, idx)
 
+}
+
+Ring_Type :: enum {
+	Fuel_Ward, // slows lantern drain
+	Stone_Skin, // +2 DR
+	Swiftness, // +x move speed
+	Shadow_Step, // lowers enemy spot range
+	Ember_Light, // +n lantern radius (1-3?..)
+	Void_Eye, // +n dark vision radius
+}
+
+Ring_Data :: struct {
+	type: Ring_Type,
 }
 
 AI_State :: enum {
@@ -255,6 +274,7 @@ Player_Data :: struct {
 	boons:         bit_set[Player_Boon],
 	sanity:        int,
 	// curses / negatives
+	ring:          Maybe(Ring_Type),
 }
 
 Player_Boon :: enum {

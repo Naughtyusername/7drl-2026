@@ -528,7 +528,7 @@ draw_items :: proc(game: ^Game) {
 		if !in_view {continue}
 		char: cstring
 		color: Color_Range
-		switch _ in item.data {
+		#partial switch _ in item.data {
 		case Potion_Data:
 			char = "!"
 			color = POTION_COLOR
