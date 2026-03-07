@@ -7,7 +7,6 @@ import rl "vendor:raylib"
 // Shadowcasting — https://www.albertford.com/shadowcasting/
 // ===============================================================================================================================================================
 
-// TODO: debug mode that enables one octant at a time to verify each 45-degree wedge
 OCTANT_MULTIPLIERS :: [8][4]int {
 	// 0 - 3
 	{1, 0, 0, 1},

@@ -108,7 +108,6 @@ add_light :: proc(existing: rl.Color, new_light: rl.Color) -> rl.Color {
 		min(u8(int(existing.b) + int(new_light.b)), 255),
 		255,
 	}
-	// TODO debug text, check if colors are saturating (hitting 255) or wrapping over
 }
 
 is_dark :: proc(c: rl.Color) -> bool {

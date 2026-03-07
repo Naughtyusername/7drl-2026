@@ -20,7 +20,6 @@ Log_Level :: enum {
 
 init_logger :: proc(base_name: string) -> (Logger, bool) {
 	// Create logs dir — .Exist is fine, we expect it after the first run
-	// TODO: eventually pick the right path per platform (Windows AppData, XDG_DATA_HOME on Linux)
 	dir_err := os.make_directory("./logs")
 	if dir_err != nil && dir_err != os.General_Error.Exist {
 		fmt.println("Failed to create logs directory:", dir_err)

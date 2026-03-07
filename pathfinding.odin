@@ -18,7 +18,7 @@ package sdrl
   astar_step :: proc(
       game: ^Game,
       start_x, start_y, goal_x, goal_y: int,
-      max_dist: int = 30, // TODO adjust as needed, this may be too much.
+      max_dist: int = 30,
   ) -> (int, int, bool) {
       if start_x == goal_x && start_y == goal_y {
           return start_x, start_y, true

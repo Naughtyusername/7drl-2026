@@ -57,7 +57,7 @@ draw_map :: proc(game: ^Game) {
 				tile_base_color := base_color
 				base_color = apply_lighting(tile_base_color, light_color)
 			} else {
-				// TODO: replace with FOG Color_Range lerp — /4 kills low-value colors entirely
+				// FOG Color_Range lerp replacement tracked in todo
 				base_color.r /= 4
 				base_color.g /= 4
 				base_color.b /= 4
@@ -398,7 +398,7 @@ draw_hud :: proc(game: ^Game) {
 	rl.DrawText("@", 10, y1, FONT_SIZE, sample_color(PLAYER))
 
 	rl.DrawText(
-		fmt.ctprintf("HP:%d/%d", player.hp, player.max_hp), // TODO: player.max_hp
+		fmt.ctprintf("HP:%d/%d", player.hp, player.max_hp),
 		140,
 		y1,
 		FONT_SIZE,
