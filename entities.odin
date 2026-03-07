@@ -388,7 +388,7 @@ check_trap :: proc(game: ^Game, actor: ^Actor) {
 			if is_player_actor {
 				actor.stunned_turns = 2
 				if is_player_actor {
-					log_messagef(game, "A snare catches your leg! You're stunned.")
+					log_messagef(game, "A snare catches your leg! You're stunned [2 Turns]")
 				}
 			} else {
 				actor.stunned_turns = 2
