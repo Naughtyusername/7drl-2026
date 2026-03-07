@@ -311,7 +311,8 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				// try to unwrap this Maybe, if there is data, run it.
 				actor.time_next += result.cost * BASE_SPEED / actor.speed
 				cost := result.cost
-				if player_data, pd_ok := &actor.data.(Player_Data); pd_ok && player_data.haste_turns > 0 {
+				if player_data, pd_ok := &actor.data.(Player_Data);
+				   pd_ok && player_data.haste_turns > 0 {
 					cost /= 2
 				}
 				actor.time_next += cost * BASE_SPEED / actor.speed
@@ -364,10 +365,14 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					if aff, aff_ok := pd.affliction.(Sanity_Affliction); aff_ok && aff == .Feral {
 						pd.feral_hp_tick += 1
 						if pd.feral_hp_tick % 10 == 0 {
-							get_player(game).hp = min(get_player(game).hp + 2, get_player(game).max_hp)
+							get_player(game).hp = min(
+								get_player(game).hp + 2,
+								get_player(game).max_hp,
+							)
 						}
 					}
-					if aff, aff2_ok := pd.affliction.(Sanity_Affliction); aff2_ok && aff == .Paranoia {
+					if aff, aff2_ok := pd.affliction.(Sanity_Affliction);
+					   aff2_ok && aff == .Paranoia {
 						if pd.sanity_tick % 15 == 0 {
 							fake_dmg := rand.int_max(5) + 1
 							log_messagef(game, "Something strikes you for %d damage!", fake_dmg)
@@ -398,6 +403,18 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 						)
 						if dist <= 5 {
 							pd.sanity = max(0, pd.sanity - 1)
+						}
+					}
+					// Boss proximity sanity drain
+					if game.current_floor == 10 {
+						for &other in game.actors {
+							e, e_ok := other.data.(Enemy_Data)
+							if !e_ok || !other.alive || e.enemy_type != .Vampire_Lord {continue}
+							if e.boss_phase == .Dormant {continue}
+							dist := max(abs(other.x - get_player(game).x), abs(other.y - get_player(game).y))
+							if dist <= 8 {
+								pd.sanity = max(0, pd.sanity - 1)
+							}
 						}
 					}
 					// affliction trigger
@@ -455,6 +472,9 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			// Stun handling
 			if actor.stunned_turns > 0 {
 				actor.stunned_turns -= 1
+				if actor.stun_immune_turns > 0 {
+					actor.stun_immune_turns -= 1
+				}
 				action_cost := STUN_ACTION_COST
 				actor.time_next += action_cost * BASE_SPEED / actor.speed
 				game.current_time = actor.time_next
@@ -883,7 +903,11 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 
 	// Treasure room / pedestal
 	if ped, ok := game.pedestal.?; ok && ped.active && next_x == ped.x && next_y == ped.y {
-		grant_random_boon(game)
+		if game.current_floor == 10 {
+			start_boss_fight(game)
+		} else {
+			grant_random_boon(game)
+		}
 		ped.active = false
 		game.pedestal = ped // write back the modified copy
 		return Action_Result{action = .Wait, cost = BASE_SPEED}

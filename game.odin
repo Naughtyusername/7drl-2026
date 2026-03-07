@@ -1038,3 +1038,21 @@ try_pickup_gold :: proc(game: ^Game) {
 		}
 	}
 }
+
+start_boss_fight :: proc(game: ^Game) {
+	if game.boss_triggered {return}
+	game.boss_triggered = true
+
+	cx := game.map_width / 2 + 3 // spawn offset from the sacophagus so you dont ge spawn hit
+	cy := game.map_height / 2
+
+	boss := make_boss(len(game.actors), cx, cy)
+	append(&game.actors, boss)
+	// activate it - set phase to active and schedule it
+	if ed := &game.actors[len(game.actors)-1].data.(Enemy_Data); ed != nil {
+		ed.boss_phase = .Active
+	}
+	schedule_actor(&game.scheduler, &game.actors[len(game.actors)-1])
+
+	log_messagef(game, "The sarcopagus crack open. Run.")
+}

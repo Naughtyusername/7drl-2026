@@ -15,7 +15,52 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 	player := get_player(game)
 	if !ok {return .Wait}
 
-	#partial switch enemy_data.ai_state {
+	// Boss stuff
+	if enemy_data.enemy_type == .Vampire_Lord {
+		if enemy_data.boss_phase == .Dormant {return .Wait}
+
+		// enrage threshold
+		if actor.hp <= 24 && enemy_data.boss_phase == .Active {
+			enemy_data.boss_phase = .Enraged
+			log_messagef(game, "The Vunknown SCREATCHES. It's wounds close before you...")
+		}
+
+		enemy_data.last_known_x = player.x
+		enemy_data.last_known_y = player.y
+		enemy_data.ai_state = .Hunting
+
+		// teleport every 4?ish hits
+		if enemy_data.hits_since_teleport >= 4 {
+			enemy_data.hits_since_teleport = 0
+			old_x, old_y := actor.x, actor.y
+			// find tile >5 from player
+			for a := 0; a < 500; a += 1 {
+				tx := rand.int_max(game.map_width)
+				ty := rand.int_max(game.map_height)
+				if game.tiles[ty][tx] != .Floor {continue}
+				if max(abs(tx - player.x), abs(ty - player.y)) < 5 {continue}
+				actor.x = tx
+				actor.y = ty
+				break
+			}
+			// spawn 2 pests at old position
+			for _ in 0 ..< 2 {
+				pest := make_lantern_pest(len(game.actors), old_x, old_y)
+				append(&game.actors, pest)
+				schedule_actor(&game.scheduler, &game.actors[len(game.actors) - 1])
+			}
+			log_messagef(game, "The Vunknown vanishes!")
+		}
+
+		// enraged bump speed
+		if enemy_data.boss_phase == .Enraged {
+			actor.speed = 140
+		}
+
+		return update_enemy_movement(game, actor)
+	}
+
+	switch enemy_data.ai_state {
 	// Idle
 	case .Idle:
 		if can_detect_player(game, actor) {
@@ -389,6 +434,27 @@ make_wraith :: proc(id, x, y: int) -> Actor {
 	}
 }
 
+make_boss :: proc(id, x, y: int) -> Actor {
+	return Actor {
+		id = id,
+		x = x,
+		y = y,
+		hp = 80,
+		max_hp = 80,
+		alive = true, //ironic
+		speed = 110,
+		data = Enemy_Data {
+			name = "Vunknown",
+			char = "V",
+			color = sample_color(BOSS_COLOR),
+			damage = 10,
+			vision_range = 30,
+			enemy_type = .Vampire_Lord,
+			boss_phase = .Dormant,
+		},
+	}
+}
+
 check_trap :: proc(game: ^Game, actor: ^Actor) {
 	for &trap in game.traps {
 		if trap.x != actor.x || trap.y != actor.y {continue}
@@ -597,4 +663,42 @@ resolve_kick :: proc(game: ^Game, player: ^Actor, target: ^Actor, dx, dy: int) {
 	if target.hp <= 0 {
 		kill_enemy(game, target)
 	}
+}
+
+update_enemy_movement :: proc(game: ^Game, actor: ^Actor) -> Action {
+	enemy_data := &actor.data.(Enemy_Data)
+	player := get_player(game)
+
+	if can_detect_player(game, actor) {
+		enemy_data.last_known_x = player.x
+		enemy_data.last_known_y = player.y
+	}
+
+	// astar a*
+	next_x, next_y, found := astar_step(
+		game,
+		actor.x,
+		actor.y,
+		enemy_data.last_known_x,
+		enemy_data.last_known_y,
+	)
+
+	if found && (next_x != actor.x || next_y != actor.y) {
+		if next_x == player.x && next_y == player.y {
+			resolve_enemy_attack(game, actor^, player)
+			return .Attack
+		}
+		if get_enemy_at(game, next_x, next_y) != nil {return .Wait}
+		actor.x = next_x
+		actor.y = next_y
+		check_trap(game, actor)
+		return .Move
+	}
+
+	if actor.x == enemy_data.last_known_x && actor.y == enemy_data.last_known_y {
+		if !can_detect_player(game, actor) {
+			enemy_data.ai_state = .Idle
+		}
+	}
+	return .Wait
 }
