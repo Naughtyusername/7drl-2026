@@ -446,7 +446,6 @@ check_trap :: proc(game: ^Game, actor: ^Actor) {
 		// Check death
 		if actor.hp <= 0 && is_player_actor {
 			// Death handled by caller checking hp
-			// TODO
 		}
 	}
 }

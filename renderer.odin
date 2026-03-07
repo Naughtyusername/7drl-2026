@@ -145,8 +145,9 @@ draw_game :: proc(sm: ^State_Manager) {
 should_draw_enemy :: proc(game: ^Game, actor: ^Actor) -> (draw: bool, dimmed: bool) {
 	player := get_player(game)
 	player_data := player.data.(Player_Data)
-	enemy_data, ok := actor.data.(Enemy_Data)
-	if !ok {return false, false}
+
+	enemy_data, e_ok := actor.data.(Enemy_Data)
+	if !e_ok {return false, false}
 
 	// stealthy enemies always visible up close - this stops the diagonal invisible hits
 	// that i found to be not fun in playtesting.
@@ -154,9 +155,6 @@ should_draw_enemy :: proc(game: ^Game, actor: ^Actor) -> (draw: bool, dimmed: bo
 	if .Stealthy in enemy_data.tags {
 		dist := max(abs(actor.x - player.x), abs(actor.y - player.y))
 		if dist <= NEAR_REVEAL_RADIUS {
-			// TODO this still doesnt work due to sizes, which was a fun idea at the start
-			// to not see small things in the dark but im not sure how it pans out in reality
-			// this needs more play testing but getting hit by invisible things is not really fun
 			return true, false
 		}
 	}

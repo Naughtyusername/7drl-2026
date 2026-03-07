@@ -10,7 +10,7 @@ MAP_HEIGHT :: 50
 VIEWPORT_WIDTH :: 60
 VIEWPORT_HEIGHT :: 34
 
-TILE_SIZE :: 24 // TODO offer a set of options possibly, but 24-28 like in cogmind
+TILE_SIZE :: 24 // runtime switchable presets (16/20/24) tracked in todo
 // works best for my blind ass. 20 was fun but to smol.
 
 // will tweak later
@@ -33,10 +33,11 @@ ROOM_SIZE_MAX :: 10
 
 MAX_LANTERN_RADIUS :: 8
 MAX_FOV_RADIUS :: 12 // how far player can see when not in darkness/blinded
-BASE_SPEED :: 100 // for speed based math calls that dont need go off of actor.speed, standard value
+BASE_SPEED       :: 100 // standard TU cost baseline
+STUN_ACTION_COST :: 200 // TU burned by a stunned actor per scheduler pop (2 turns at BASE_SPEED)
 
 // Mutable Variants
-fov_radius: int = 10 // TODO: dynamic lighting via lantern // adjust this when level gen is better.
+fov_radius: int = 10
 screen_w: int
 screen_h: int
 
@@ -95,7 +96,7 @@ Potion_Data :: struct {
 
 Scroll_Type :: enum {
 	Enchantment, // +1 TODO give player a armor piece to upgrade with this for defense.
-	Map_Reveal, // TODO rip this from the main game
+	Map_Reveal,
 	Hostile_Tracking, // brogue twinkles.
 	Teleport,
 }
@@ -236,7 +237,6 @@ AI_State :: enum {
 	Fleeing,
 }
 
-// TODO: improve scheduler — starts 1 tick ahead of turn
 Scheduler :: struct {
 	actors:       [dynamic]^Actor,
 	current_time: int,
@@ -274,7 +274,7 @@ Player_Data :: struct {
 	lantern:             Lantern,
 	gold:                int,
 	inventory:           [dynamic]Item,
-	active_weapon:       Weapon_Type, // TODO change to 1 to make whip default.
+	active_weapon:       Weapon_Type, // zero value = Dagger, correct default
 	last_dx:             int,
 	last_dy:             int,
 	boons:               bit_set[Player_Boon],
@@ -514,7 +514,7 @@ init_game :: proc(width, height: int) -> Game {
 	if pd, ok := &game.actors[0].data.(Player_Data); ok {
 		pd.inventory = make([dynamic]Item, 0, 26) // a-z
 	}
-	game.player_index = 0 // TODO isnt player supposed to always be 1?... double check this is not broken
+	game.player_index = 0 // player is always actors[0] — get_player relies on this invariant
 
 	game.game_log = init_message_log(1000)
 	game.combat_log = init_message_log(1000)
@@ -539,7 +539,6 @@ init_game :: proc(width, height: int) -> Game {
 	return game
 }
 
-// TODO make or port over the state manager system/file.
 update_game :: proc(sm: ^State_Manager) {
 	if len(sm.stack) == 0 {return}
 

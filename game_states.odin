@@ -306,8 +306,15 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				continue
 			}
 			if result, ok := handle_input(game).?; ok { 	// .? is odins Maybe/Optional wrapper
+				player_data := get_player(game).data.(Player_Data)
 				// try to unwrap this Maybe, if there is data, run it.
 				actor.time_next += result.cost * BASE_SPEED / actor.speed
+				cost := result.cost
+				if player_data, pd_ok := &actor.data.(Player_Data); pd_ok && player_data.haste_turns > 0 {
+					cost /= 2
+				}
+				actor.time_next += cost * BASE_SPEED / actor.speed
+
 
 				game.current_time = actor.time_next
 				game.scheduler.current_time = actor.time_next
@@ -315,7 +322,6 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 
 				// Lantern handling
 				drain_fuel(game)
-				player_data := get_player(game).data.(Player_Data)
 				fov_r := MAX_FOV_RADIUS
 				lantern_r := 0
 				switch player_data.lantern.state {
@@ -448,7 +454,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			// Stun handling
 			if actor.stunned_turns > 0 {
 				actor.stunned_turns -= 1
-				action_cost := 200 // TODO stun_duration
+				action_cost := STUN_ACTION_COST
 				actor.time_next += action_cost * BASE_SPEED / actor.speed
 				game.current_time = actor.time_next
 				game.scheduler.current_time = actor.time_next
