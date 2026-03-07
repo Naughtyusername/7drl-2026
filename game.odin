@@ -116,7 +116,7 @@ Item_Data :: union {
 }
 
 item_name :: proc(item: Item) -> string {
-	#partial switch d in item.data {
+	switch d in item.data {
 	case Potion_Data:
 		switch d.type {
 		case .Healing:
@@ -151,6 +151,11 @@ use_item :: proc(game: ^Game, idx: int) {
 	if idx < 0 || idx >= len(pd.inventory) {return}
 	item := pd.inventory[idx]
 
+	if aff, ok := pd.affliction.(Sanity_Affliction); ok && aff == .Feral {
+		log_messagef(game, "Your feral mind refuses.")
+		return
+	}
+
 	switch d in item.data {
 	case Potion_Data:
 		switch d.type {
@@ -163,17 +168,23 @@ use_item :: proc(game: ^Game, idx: int) {
 			pd.lantern.state = .Empty;{pd.lantern.state = .Lit}
 			log_messagef(game, "You refuel the lantern. (+%d)", added)
 		case .Clarity:
-			// TODO
+			pd.clarity_turns = 10
 			log_messagef(game, "Your lantern burns brighter and longer!")
 		case .Volatile_Flash:
-			// TODO
+			for &a in game.actors {
+				if _, ok := a.data.(Enemy_Data); !ok || !a.alive {continue}
+				if max(abs(a.x - player.x), abs(a.y - player.y)) <= 4 {
+					a.hp -= 12
+					if a.hp <= 0 {a.alive = false;game.enemies_slain += 1}
+				}
+			}
 			log_messagef(game, "A burst of flames erupts around you!")
 		case .Haste:
-			// TODO
+			pd.haste_turns = 8
 			log_messagef(game, "[Hasted] - You feel invigorated!")
 		}
 	case Scroll_Data:
-		#partial switch d.type {
+		switch d.type {
 		case .Map_Reveal:
 			for y in 0 ..< game.map_height {
 				for x in 0 ..< game.map_width {
@@ -181,10 +192,24 @@ use_item :: proc(game: ^Game, idx: int) {
 				}
 			}
 			log_messagef(game, "The map floods your mind!")
-		case .Enchantment, .Hostile_Tracking:
-			log_messagef(game, "You read the scroll. TODO")
+		case .Enchantment:
+			pd.weapon_damage_bonus += 1
+			log_messagef(game, "Your weapon glows. (+1 damage, Permanent)")
+		case .Hostile_Tracking:
+			log_messagef(game, "Your sense all enemies nearby. (TODO tomorrow)")
 		case .Teleport:
-			log_messagef(game, "You read the scroll. TODO")
+			for a := 0; a < 1000; a += 1 {
+				tx := rand.int_max(game.map_width)
+				ty := rand.int_max(game.map_height)
+				if game.tiles[ty][tx] == .Floor {
+					player.x = tx
+					player.y = ty
+					break
+				}
+			}
+			fov_r, lantern_r := get_fov_radii(game)
+			compute_fov(game, player.x, player.y, fov_r, lantern_r)
+			log_messagef(game, "The walls rush past you.")
 		}
 	}
 
@@ -677,12 +702,17 @@ Lantern :: struct {
 
 get_fov_radii :: proc(game: ^Game) -> (fov_r: int, lantern_r: int) {
 	player_data := get_player(game).data.(Player_Data)
+	pd := &get_player(game).data.(Player_Data)
 	fov_r = MAX_FOV_RADIUS
 	lantern_r = 0
 
 	switch player_data.lantern.state {
 	case .Lit:
 		lantern_r = calculate_lantern_radius(player_data.lantern)
+		if pd.clarity_turns > 0 {lantern_r += 3}
+		if aff, ok := pd.affliction.(Sanity_Affliction); ok && aff == .Hollow_Eyes {
+			lantern_r = max(1, lantern_r - 2)
+		}
 	case .Extinguished:
 		fov_r = MAX_LANTERN_RADIUS
 	case .Empty:
@@ -705,6 +735,8 @@ calculate_lantern_radius :: proc(lantern: Lantern) -> int {
 
 drain_fuel :: proc(game: ^Game) {
 	player := get_player(game)
+	pd := &get_player(game).data.(Player_Data)
+	if pd.clarity_turns > 0 {return}
 	data, ok := &player.data.(Player_Data)
 	if !ok {return}
 

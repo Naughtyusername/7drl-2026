@@ -287,13 +287,17 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					if .Carries_Light not_in ed.tags {continue}
 					if ed.light_radius <= 0 {continue}
 					lc: rl.Color
-					#partial switch ed.enemy_type {
+					switch ed.enemy_type {
 					case .Thrall:
 						lc = sample_color(THRALL_LIGHT)
 					case .Wraith:
 						lc = sample_color(WRAITH_LIGHT)
 					case:
 						lc = rl.WHITE
+					case .Wolf:
+					case .Shade:
+					case .Lantern_Pest:
+					case .Skeleton_Knight:
 					}
 					emit_light(game, ea.x, ea.y, ed.light_radius, lc)
 				}
@@ -348,6 +352,20 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				// sanity drain -- lazy fast -- TODO base this not on lantern state but is_tile_lit....
 				// but we still have the bug of light ball blobs so unless i fix that before lauch, this is safer.
 				if pd, pd_ok := &get_player(game).data.(Player_Data); pd_ok {
+					if pd.clarity_turns > 0 {pd.clarity_turns -= 1}
+					if pd.haste_turns > 0 {pd.haste_turns -= 1}
+					if aff, aff_ok := pd.affliction.(Sanity_Affliction); aff_ok && aff == .Feral {
+						pd.feral_hp_tick += 1
+						if pd.feral_hp_tick % 10 == 0 {
+							get_player(game).hp = min(get_player(game).hp + 2, get_player(game).max_hp)
+						}
+					}
+					if aff, aff2_ok := pd.affliction.(Sanity_Affliction); aff2_ok && aff == .Paranoia {
+						if pd.sanity_tick % 15 == 0 {
+							fake_dmg := rand.int_max(5) + 1
+							log_messagef(game, "Something strikes you for %d damage!", fake_dmg)
+						}
+					}
 					pd.sanity_tick += 1
 					#partial switch pd.lantern.state {
 					case .Empty:

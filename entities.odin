@@ -1,7 +1,7 @@
 package sdrl
 
-import "core:math/rand"
 import "core:math"
+import "core:math/rand"
 
 update_player :: proc(game: ^Game, actor: ^Actor, next_x, next_y: int) {
 	if in_bounds(game, next_x, next_y) && game.tiles[next_y][next_x] != .Wall {
@@ -151,8 +151,17 @@ alert_wolf_pack :: proc(game: ^Game, alerting_wolf: ^Actor) {
 
 can_detect_player :: proc(game: ^Game, actor: ^Actor) -> bool {
 	player := get_player(game)
+	player_pd := get_player(game).data.(Player_Data)
 	enemy_data, ok := actor.data.(Enemy_Data)
 	if !ok {return false}
+
+	if aff, aff_ok := player_pd.affliction.(Sanity_Affliction); aff_ok && aff == .Paranoia {
+		return true
+	}
+	limit := enemy_data.vision_range
+	if aff, aff2_ok := player_pd.affliction.(Sanity_Affliction); aff2_ok && aff == .Marked {
+		limit *= 2
+	}
 
 	// raw
 	dist := max(abs(actor.x - player.x), abs(actor.y - player.y))
@@ -477,26 +486,82 @@ spawn_items :: proc(game: ^Game) {
 		// Bias toward potions early, more scrolls later - enchant might be too good
 		roll := rand.float32()
 		item: Item
-		if roll < 0.5 {
+		if game.current_floor <= 2 {
+			// early: healing/fuel heavy
+			type: Potion_Type
+			if roll <
+			   0.55 {type = .Healing} else if roll < 0.85 {type = .Fuel} else {type = .Clarity}
 			item = Item {
 				id = next_id + i,
-				data = Potion_Data{type = .Healing},
-				x = x,
-				y = y,
-			}
-		} else if roll < 0.75 {
-			item = Item {
-				id = next_id + i,
-				data = Potion_Data{type = .Fuel},
+				data = Potion_Data{type = type},
 				x = x,
 				y = y,
 			}
 		} else {
-			item = Item {
-				id = next_id + i,
-				data = Scroll_Data{type = .Map_Reveal},
-				x = x,
-				y = y,
+			// floor 3+: full table
+			if roll < 0.25 {
+				item = Item {
+					id = next_id + i,
+					data = Potion_Data{type = .Healing},
+					x = x,
+					y = y,
+				}
+			} else if roll < 0.40 {
+				item = Item {
+					id = next_id + i,
+					data = Potion_Data{type = .Fuel},
+					x = x,
+					y = y,
+				}
+			} else if roll < 0.55 {
+				item = Item {
+					id = next_id + i,
+					data = Potion_Data{type = .Volatile_Flash},
+					x = x,
+					y = y,
+				}
+			} else if roll < 0.65 {
+				item = Item {
+					id = next_id + i,
+					data = Potion_Data{type = .Haste},
+					x = x,
+					y = y,
+				}
+			} else if roll < 0.72 {
+				item = Item {
+					id = next_id + i,
+					data = Potion_Data{type = .Clarity},
+					x = x,
+					y = y,
+				}
+			} else if roll < 0.82 {
+				item = Item {
+					id = next_id + i,
+					data = Scroll_Data{type = .Map_Reveal},
+					x = x,
+					y = y,
+				}
+			} else if roll < 0.90 {
+				item = Item {
+					id = next_id + i,
+					data = Scroll_Data{type = .Enchantment},
+					x = x,
+					y = y,
+				}
+			} else if roll < 0.96 {
+				item = Item {
+					id = next_id + i,
+					data = Scroll_Data{type = .Teleport},
+					x = x,
+					y = y,
+				}
+			} else {
+				item = Item {
+					id = next_id + i,
+					data = Scroll_Data{type = .Hostile_Tracking},
+					x = x,
+					y = y,
+				}
 			}
 		}
 		append(&game.items, item)

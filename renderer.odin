@@ -29,7 +29,7 @@ draw_map :: proc(game: ^Game) {
 			}
 
 			base_color: rl.Color
-			#partial switch game.tiles[world_y][world_x] {
+			switch game.tiles[world_y][world_x] {
 			case .Wall:
 				base_color = sample_color(WALL_COLOR)
 				if game.visible[world_y][world_x] {
@@ -46,7 +46,7 @@ draw_map :: proc(game: ^Game) {
 				base_color = sample_color(FLOOR_COLOR)
 			case .Stairs_Down:
 				base_color = sample_color(FLOOR_COLOR)
-			// TODO
+			case .Tile_Max:
 			}
 
 			if game.visible[world_y][world_x] {
