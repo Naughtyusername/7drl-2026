@@ -1,6 +1,7 @@
 package sdrl
 
 import "core:math/rand"
+import "core:math"
 
 update_player :: proc(game: ^Game, actor: ^Actor, next_x, next_y: int) {
 	if in_bounds(game, next_x, next_y) && game.tiles[next_y][next_x] != .Wall {
@@ -221,6 +222,17 @@ spawn_enemies :: proc(game: ^Game, count: int) {
 			}
 		}
 		append(&game.actors, actor)
+	}
+}
+
+scale_enemies :: proc(game: ^Game) {
+	scale := 1.0 + f32(game.current_floor - 1) * 0.1
+	for &actor in game.actors {
+		ed, ok := &actor.data.(Enemy_Data)
+		if !ok {continue}
+		actor.max_hp = int(math.round(f32(actor.max_hp) * scale))
+		actor.hp = actor.max_hp
+		ed.damage = int(math.round(f32(ed.damage) * scale))
 	}
 }
 

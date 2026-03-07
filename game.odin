@@ -855,6 +855,8 @@ descend_floor :: proc(game: ^Game) {
 	// Generate new floor
 	generate_dungeon(game)
 
+	scale_enemies(game)
+
 	// Rebuild scheduler
 	clear(&game.scheduler.actors)
 	for &actor in game.actors {
