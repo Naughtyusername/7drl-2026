@@ -298,6 +298,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					case .Shade:
 					case .Lantern_Pest:
 					case .Skeleton_Knight:
+					case .Vampire_Lord:
 					}
 					emit_light(game, ea.x, ea.y, ed.light_radius, lc)
 				}

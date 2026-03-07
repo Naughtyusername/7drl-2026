@@ -33,7 +33,7 @@ ROOM_SIZE_MAX :: 10
 
 MAX_LANTERN_RADIUS :: 8
 MAX_FOV_RADIUS :: 12 // how far player can see when not in darkness/blinded
-BASE_SPEED       :: 100 // standard TU cost baseline
+BASE_SPEED :: 100 // standard TU cost baseline
 STUN_ACTION_COST :: 200 // TU burned by a stunned actor per scheduler pop (2 turns at BASE_SPEED)
 
 // Mutable Variants
@@ -80,6 +80,7 @@ Enemy_Type :: enum {
 	Lantern_Pest,
 	Skeleton_Knight,
 	Wraith,
+	Vampire_Lord,
 }
 
 Potion_Type :: enum {
@@ -237,6 +238,13 @@ AI_State :: enum {
 	Fleeing,
 }
 
+Boss_Phase :: enum {
+	Dormant, // not yet triggered, sitting in sarcophagus
+	Active,
+	Enraged, // low hp, maybe 20%, faster movement, stronger hits?
+	Flee, // stage this maybe twice? 75% then 25%
+}
+
 Scheduler :: struct {
 	actors:       [dynamic]^Actor,
 	current_time: int,
@@ -251,16 +259,16 @@ Camera :: struct {
 
 Actor :: struct {
 	// base stats
-	id:            int,
-	x, y:          int,
-	hp:            int,
-	alive:         bool,
-	max_hp:        int,
-	time_next:     int,
-	speed:         int,
-	// data
-	data:          Actor_Data,
-	stunned_turns: int,
+	id:                int,
+	x, y:              int,
+	hp:                int,
+	alive:             bool,
+	max_hp:            int,
+	time_next:         int,
+	speed:             int,
+	data:              Actor_Data,
+	stunned_turns:     int,
+	stun_immune_turns: int,
 }
 
 Actor_Data :: union {
@@ -324,17 +332,19 @@ apply_sanity_affliction :: proc(game: ^Game) {
 }
 
 Enemy_Data :: struct {
-	name:         string,
-	color:        rl.Color,
-	char:         cstring,
-	damage:       int,
-	vision_range: int,
-	light_radius: int,
-	enemy_type:   Enemy_Type,
-	ai_state:     AI_State,
-	tags:         bit_set[Enemy_Tag],
-	last_known_x: int,
-	last_known_y: int,
+	name:                string,
+	color:               rl.Color,
+	char:                cstring,
+	damage:              int,
+	vision_range:        int,
+	light_radius:        int,
+	enemy_type:          Enemy_Type,
+	ai_state:            AI_State,
+	boss_phase:          Boss_Phase,
+	hits_since_teleport: int,
+	tags:                bit_set[Enemy_Tag],
+	last_known_x:        int,
+	last_known_y:        int,
 }
 
 Debug_Throttle :: struct {
@@ -434,6 +444,7 @@ Game :: struct {
 	enemies_slain:     int,
 	next_wraith_spawn: int,
 	wraith_count:      int,
+	boss_triggered:    bool,
 	// log/debug
 	logger:            Logger,
 	debug_throttles:   map[string]Debug_Throttle,
@@ -626,6 +637,7 @@ restart_game :: proc(game: ^Game) {
 	game.current_floor = 1
 	game.turn_count = 0
 	game.enemies_slain = 0
+	game.boss_triggered = false
 
 	center_camera(&game.camera, player.x, player.y, game.map_width, game.map_height)
 	fov_r, lantern_r := get_fov_radii(game)

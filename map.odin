@@ -5,6 +5,8 @@ import "core:math/rand"
 import "core:os"
 import "core:strings"
 
+ARENA_MARGIN :: 6
+
 place_stairs :: proc(game: ^Game) {
 	player := get_player(game)
 
@@ -191,12 +193,12 @@ place_traps :: proc(game: ^Game) {
 				break
 			}
 		}
-        if too_close { continue }
+		if too_close {continue}
 
-        // Counting enum values with uniform distribution the odin way
-        trap_type := Trap_Type(rand.int_max(len(Trap_Type)))
-        append(&game.traps, Trap{x = cx, y = cy, type = trap_type})
-        placed += 1
+		// Counting enum values with uniform distribution the odin way
+		trap_type := Trap_Type(rand.int_max(len(Trap_Type)))
+		append(&game.traps, Trap{x = cx, y = cy, type = trap_type})
+		placed += 1
 	}
 }
 
@@ -207,6 +209,12 @@ dump_map_ascii :: proc(game: ^Game, filename: string) {
 	defer strings.builder_destroy(&sb)
 
 	fmt.sbprintf(&sb, "Floor %d  %dx%d\n", game.current_floor, game.map_width, game.map_height)
+
+	if game.current_floor == 10 {
+		generate_boss_arena(game)
+		return
+	}
+
 
 	for y in 0 ..< game.map_height {
 		for x in 0 ..< game.map_width {
@@ -259,3 +267,43 @@ is_corridor_tile :: proc(game: ^Game, x, y: int) -> bool {
 	ew := e && w && !n && !s
 	return ns || ew
 }
+
+generate_boss_arena :: proc(game: ^Game) {
+	for y in 0 ..< game.map_height {
+		for x in 0 ..< game.map_width {
+			game.tiles[y][x] = .Water
+		}
+	}
+	// crve out open area inside the margins
+	for y in ARENA_MARGIN ..< game.map_height - ARENA_MARGIN {
+		for x in ARENA_MARGIN ..< game.map_width - ARENA_MARGIN {
+			game.tiles[y][x] = .Floor
+		}
+	}
+	// scatter 2x2 pillar vlusters for cover
+	for _ in 0 ..< 18 {
+		px := ARENA_MARGIN + 2 + rand.int_max(game.map_width - ARENA_MARGIN * 2 - 4)
+		py := ARENA_MARGIN + 2 + rand.int_max(game.map_height - ARENA_MARGIN * 2 - 4)
+		game.tiles[py][px] = .Wall
+		game.tiles[py][px + 1] = .Wall
+		game.tiles[py + 1][px] = .Wall
+	}
+	// sarcophagus in the center, resuing pedestal stuff
+	cx := game.map_width / 2
+	cy := game.map_height / 2
+	game.tiles[cy][cx] = .Floor // floor so we can touch it and not add a new tile, this works so far.
+	game.pedestal = Boon_Pedistal{x = cx, y = cy, active = true}
+	game.treasure_room = nil
+
+	// place player at left edge of arena
+	player := get_player(game)
+	player.x = ARENA_MARGIN + 2
+	player.y= ARENA_MARGIN / 2
+
+	// no traps, enemies, stairs etc.
+	log_messagef(game, "The air goes cold, Something ancient stirs...")
+}
+// TODO we spawn in a greenish blob area outside the map with this currently.
+// its a cool bug, but we should work on that tomorrow
+// oh and make wraiths not spawn. and remove enemy spawning. items are ok, let the rng
+// gods be with those who its with
