@@ -208,6 +208,11 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 		}
 	}
 	when ODIN_DEBUG {
+		if rl.IsKeyPressed(.F6) {
+			apply_sanity_affliction(game)
+		}
+	}
+	when ODIN_DEBUG {
 		if rl.IsKeyPressed(.MINUS) {
 			descend_floor(game)
 		}
@@ -356,18 +361,24 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 						if pd.sanity_tick % 10 == 0 && pd.sanity <= 99 {
 							pd.sanity = max(0, pd.sanity + 1)
 						}
-						// Wraith Sanity drain -- TODO Boss will be similar to this wehn implemented
-						for &other in game.actors {
-							e, e_ok := other.data.(Enemy_Data)
-							if !e_ok || !other.alive {continue}
-							if e.enemy_type != .Wraith {continue}
-							dist := max(
-								abs(other.x - get_player(game).x),
-								abs(other.y - get_player(game).y),
-							)
-							if dist <= 5 {
-								pd.sanity = max(0, pd.sanity - 1)
-							}
+					}
+					// Wraith Sanity drain -- TODO Boss will be similar to this wehn implemented
+					for &other in game.actors {
+						e, e_ok := other.data.(Enemy_Data)
+						if !e_ok || !other.alive {continue}
+						if e.enemy_type != .Wraith {continue}
+						dist := max(
+							abs(other.x - get_player(game).x),
+							abs(other.y - get_player(game).y),
+						)
+						if dist <= 5 {
+							pd.sanity = max(0, pd.sanity - 1)
+						}
+					}
+					// affliction trigger
+					if pd.sanity == 0 {
+						if _, has := pd.affliction.(Sanity_Affliction); !has {
+							apply_sanity_affliction(game)
 						}
 					}
 				}

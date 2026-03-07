@@ -85,10 +85,8 @@ Potion_Type :: enum {
 	Healing,
 	Fuel, // portable fuel in emergencies
 	Clarity, // see items/stairs, etc.
-	Blindness, // lights out
-	Confusion, // shrooms
-	Fire, // ouch + light
-	Darkness,
+	Volatile_Flash,
+	Haste,
 }
 
 Potion_Data :: struct {
@@ -99,8 +97,7 @@ Scroll_Type :: enum {
 	Enchantment, // +1 TODO give player a armor piece to upgrade with this for defense.
 	Map_Reveal, // TODO rip this from the main game
 	Hostile_Tracking, // brogue twinkles.
-	Identify, // id items might get nixed.
-	Summoning, // pray for help buddy.
+	Teleport,
 }
 
 Scroll_Data :: struct {
@@ -116,7 +113,6 @@ Item :: struct {
 Item_Data :: union {
 	Potion_Data,
 	Scroll_Data,
-	Ring_Data,
 }
 
 item_name :: proc(item: Item) -> string {
@@ -129,14 +125,10 @@ item_name :: proc(item: Item) -> string {
 			return "Oil Flask"
 		case .Clarity:
 			return "Potion of Clarity"
-		case .Blindness:
-			return "Potion of Blindness"
-		case .Confusion:
-			return "Potion of Confusion"
-		case .Fire:
-			return "Fire Potion"
-		case .Darkness:
-			return "Potion of Darkness"
+		case .Volatile_Flash:
+			return "Potion of Volatile Flash"
+		case .Haste:
+			return "Potion of Haste"
 		}
 	case Scroll_Data:
 		switch d.type {
@@ -146,16 +138,9 @@ item_name :: proc(item: Item) -> string {
 			return "Scroll of Enchantment"
 		case .Hostile_Tracking:
 			return "Scroll of Tracking"
-		case .Identify:
-			return "Scroll of Identify"
-		case .Summoning:
-			return "Scroll of Summoning"
+		case .Teleport:
+			return "Scroll of Teleportation"
 		}
-	//case Ring_Data:
-	// switch d.type {
-	// case .RingNames:
-
-	//}
 	}
 	return "Unknown Item"
 }
@@ -166,9 +151,9 @@ use_item :: proc(game: ^Game, idx: int) {
 	if idx < 0 || idx >= len(pd.inventory) {return}
 	item := pd.inventory[idx]
 
-	#partial switch d in item.data {
+	switch d in item.data {
 	case Potion_Data:
-		#partial switch d.type {
+		switch d.type {
 		case .Healing:
 			healed := min(10, player.max_hp - player.hp)
 			player.hp += healed
@@ -177,11 +162,18 @@ use_item :: proc(game: ^Game, idx: int) {
 			added := min(100, pd.lantern.max_fuel - pd.lantern.fuel)
 			pd.lantern.state = .Empty;{pd.lantern.state = .Lit}
 			log_messagef(game, "You refuel the lantern. (+%d)", added)
-		case .Clarity, .Blindness, .Confusion, .Fire, .Darkness:
-			log_messagef(game, "You drink the potion. (TODO copy from main game)")
+		case .Clarity:
+			// TODO
+			log_messagef(game, "Your lantern burns brighter and longer!")
+		case .Volatile_Flash:
+			// TODO
+			log_messagef(game, "A burst of flames erupts around you!")
+		case .Haste:
+			// TODO
+			log_messagef(game, "[Hasted] - You feel invigorated!")
 		}
 	case Scroll_Data:
-		switch d.type {
+		#partial switch d.type {
 		case .Map_Reveal:
 			for y in 0 ..< game.map_height {
 				for x in 0 ..< game.map_width {
@@ -189,7 +181,9 @@ use_item :: proc(game: ^Game, idx: int) {
 				}
 			}
 			log_messagef(game, "The map floods your mind!")
-		case .Enchantment, .Hostile_Tracking, .Identify, .Summoning:
+		case .Enchantment, .Hostile_Tracking:
+			log_messagef(game, "You read the scroll. TODO")
+		case .Teleport:
 			log_messagef(game, "You read the scroll. TODO")
 		}
 	}
@@ -208,19 +202,6 @@ drop_item :: proc(game: ^Game, idx: int) {
 	log_messagef(game, "You drop the %s.", item_name(item))
 	unordered_remove(&pd.inventory, idx)
 
-}
-
-Ring_Type :: enum {
-	Fuel_Ward, // slows lantern drain
-	Stone_Skin, // +2 DR
-	Swiftness, // +x move speed
-	Shadow_Step, // lowers enemy spot range
-	Ember_Light, // +n lantern radius (1-3?..)
-	Void_Eye, // +n dark vision radius
-}
-
-Ring_Data :: struct {
-	type: Ring_Type,
 }
 
 AI_State :: enum {
@@ -263,19 +244,22 @@ Actor_Data :: union {
 }
 
 Player_Data :: struct {
-	color:         rl.Color,
-	char:          cstring,
-	lantern:       Lantern,
-	gold:          int,
-	inventory:     [dynamic]Item,
-	active_weapon: Weapon_Type, // TODO change to 1 to make whip default.
-	last_dx:       int,
-	last_dy:       int,
-	boons:         bit_set[Player_Boon],
-	sanity:        int,
-	sanity_tick: int,
-	// curses / negatives
-	ring:          Maybe(Ring_Type),
+	color:               rl.Color,
+	char:                cstring,
+	lantern:             Lantern,
+	gold:                int,
+	inventory:           [dynamic]Item,
+	active_weapon:       Weapon_Type, // TODO change to 1 to make whip default.
+	last_dx:             int,
+	last_dy:             int,
+	boons:               bit_set[Player_Boon],
+	sanity:              int,
+	sanity_tick:         int,
+	affliction:          Maybe(Sanity_Affliction),
+	feral_hp_tick:       int,
+	clarity_turns:       int,
+	haste_turns:         int,
+	weapon_damage_bonus: int,
 }
 
 Player_Boon :: enum {
@@ -287,6 +271,31 @@ Player_Boon :: enum {
 	Iron_Lungs,
 	Keen_Nose,
 	Blood_Scent,
+}
+
+Sanity_Affliction :: enum {
+	Hollow_Eyes, // Lantern -2 Radius, Gain dark vision
+	Paranoia, // Always detect enemies in a 12 tile radius, see fake enemies and fake combat log messages
+	Feral, // no potions or scroll use, -50TU melee, +2 HP regen/10 turns
+	Marked, // enemy detect range x2, whip range +1
+}
+
+apply_sanity_affliction :: proc(game: ^Game) {
+	pd := &get_player(game).data.(Player_Data)
+	roll := rand.int_max(4)
+	aff := Sanity_Affliction(roll)
+	pd.affliction = aff
+
+	switch aff {
+	case .Hollow_Eyes:
+		log_messagef(game, "Your eyes ache. The dark feels natural now.")
+	case .Paranoia:
+		log_messagef(game, "You see something in the shadows...")
+	case .Feral:
+		log_messagef(game, "Something primal takes over. You can no longer focus on items.")
+	case .Marked:
+		log_messagef(game, "They all know you now.")
+	}
 }
 
 Enemy_Data :: struct {
@@ -617,6 +626,10 @@ in_bounds :: proc(game: ^Game, x, y: int) -> bool {
 	return x >= 0 && x < game.map_width && y >= 0 && y < game.map_height
 }
 
+// get_player always returns game.actors[player_index], which is ALWAYS a Player_Data variant.
+// Any type assertion .data.(Player_Data) on this return value is safe by that invariant.
+// If you ever take &actor.data.(Player_Data) at a call site, consider adding get_player_data
+// as a dedicated helper instead — see postmortem notes.
 get_player :: proc(game: ^Game) -> ^Actor {
 	return &game.actors[game.player_index]
 }
@@ -666,6 +679,7 @@ get_fov_radii :: proc(game: ^Game) -> (fov_r: int, lantern_r: int) {
 	player_data := get_player(game).data.(Player_Data)
 	fov_r = MAX_FOV_RADIUS
 	lantern_r = 0
+
 	switch player_data.lantern.state {
 	case .Lit:
 		lantern_r = calculate_lantern_radius(player_data.lantern)
