@@ -474,7 +474,7 @@ draw_hud :: proc(game: ^Game) {
 		atk_speed /= 2
 	}
 	if player_data.haste_turns > 0 {wep_color = rl.Color{100, 220, 255, 255}}
-	rl.DrawText(fmt.ctprintf("%s[atk:%d]", base_name, atk_speed), 560, y1, FONT_SIZE, wep_color)
+	rl.DrawText(fmt.ctprintf("%s[TU:%d]", base_name, atk_speed), 560, y1, FONT_SIZE, wep_color)
 
 	// === Line 2: game state ===
 	// floor
@@ -568,8 +568,12 @@ draw_traps :: proc(game: ^Game) {
 
 	for trap in game.traps {
 		if trap.triggered {continue}
-		if !game.visible[trap.y][trap.y] {continue}
-		if !trap.revealed && !has_trap_sight {continue}
+		if has_trap_sight {
+			if !game.revealed[trap.y][trap.x] {continue}
+		} else {
+			if !game.visible[trap.y][trap.x] {continue}
+			if !trap.revealed {continue}
+		}
 
 		screen_x, screen_y, in_view := world_to_screen(game.camera, trap.x, trap.y)
 		if !in_view {continue}
@@ -642,6 +646,7 @@ draw_help_overlay :: proc(game: ^Game) {
 		{"i", "Inventory"},
 		{"shift+l", "Toggle lantern"},
 		{"/ or ?", "Toggle this help"},
+		{"s", "Stats / affliction info"},
 		{"p / esc", "Pause menu"},
 	}
 
@@ -660,4 +665,89 @@ draw_help_overlay :: proc(game: ^Game) {
 		HELP_FONT,
 		rl.Color{80, 80, 100, 255},
 	)
+}
+
+draw_stats_overlay :: proc(game: ^Game) {
+	player := get_player(game)
+	pd, pd_ok := player.data.(Player_Data)
+	if !pd_ok {return}
+
+	BOX_W :: i32(420)
+	BOX_H :: i32(260)
+	BOX_X :: (i32(SCREEN_W) - BOX_W) / 2
+	BOX_Y :: (i32(SCREEN_H) - BOX_H) / 2
+	SFONT :: i32(14)
+	SLINE :: i32(18)
+
+	rl.DrawRectangle(BOX_X, BOX_Y, BOX_W, BOX_H, rl.Color{0, 8, 20, 230})
+	rl.DrawRectangleLinesEx(
+		rl.Rectangle{f32(BOX_X), f32(BOX_Y), f32(BOX_W), f32(BOX_H)},
+		1,
+		rl.Color{60, 90, 140, 255},
+	)
+	rl.DrawText("[ STATS ]", BOX_X + 10, BOX_Y + 8, SFONT + 2, rl.WHITE)
+	rl.DrawLine(BOX_X, BOX_Y + 26, BOX_X + BOX_W, BOX_Y + 26, rl.Color{60, 90, 140, 255})
+
+	row := BOX_Y + i32(36)
+	DIM :: rl.Color{160, 200, 255, 255}
+	VAL :: rl.Color{220, 220, 220, 255}
+
+	// Weapon section
+	stats := get_weapon_stats(pd.active_weapon)
+	wep_name: cstring = "Dagger" if pd.active_weapon == .Dagger else "Whip"
+	atk_tu := stats.speed
+	if pd.haste_turns > 0 {atk_tu /= 2}
+
+	rl.DrawText("-- WEAPON --", BOX_X + 10, row, SFONT, rl.Color{100, 160, 255, 255})
+	row += SLINE
+	rl.DrawText(fmt.ctprintf("Equipped:"), BOX_X + 10, row, SFONT, DIM)
+	rl.DrawText(fmt.ctprintf("%s", wep_name), BOX_X + 160, row, SFONT, VAL)
+	row += SLINE
+	rl.DrawText("Damage:", BOX_X + 10, row, SFONT, DIM)
+	rl.DrawText(fmt.ctprintf("%d  (+%d enchant)", stats.damage, pd.weapon_damage_bonus), BOX_X + 160, row, SFONT, VAL)
+	row += SLINE
+	rl.DrawText("Attack TU:", BOX_X + 10, row, SFONT, DIM)
+	rl.DrawText(fmt.ctprintf("%d%s", atk_tu, " [HASTED]" if pd.haste_turns > 0 else ""), BOX_X + 160, row, SFONT, rl.Color{100, 220, 255, 255} if pd.haste_turns > 0 else VAL)
+	row += SLINE
+	rl.DrawText("Range:", BOX_X + 10, row, SFONT, DIM)
+	rl.DrawText(fmt.ctprintf("%d", stats.max_range), BOX_X + 160, row, SFONT, VAL)
+	row += SLINE
+	rl.DrawText("Swap TU:", BOX_X + 10, row, SFONT, DIM)
+	rl.DrawText(fmt.ctprintf("%d", stats.swap_cost), BOX_X + 160, row, SFONT, VAL)
+	row += SLINE + 4
+
+	// Affliction section
+	rl.DrawText("-- MIND --", BOX_X + 10, row, SFONT, rl.Color{100, 160, 255, 255})
+	row += SLINE
+	rl.DrawText("Sanity:", BOX_X + 10, row, SFONT, DIM)
+	rl.DrawText(fmt.ctprintf("%d%%", pd.sanity), BOX_X + 160, row, SFONT, VAL)
+	row += SLINE
+	rl.DrawText("Affliction:", BOX_X + 10, row, SFONT, DIM)
+	if aff, aff_ok := pd.affliction.(Sanity_Affliction); aff_ok {
+		aff_name: cstring
+		aff_desc: cstring
+		switch aff {
+		case .Hollow_Eyes:
+			aff_name = "Hollow Eyes"
+			aff_desc = "Lantern radius -2. Darkness feels natural."
+		case .Paranoia:
+			aff_name = "Paranoia"
+			aff_desc = "Enemies always detect you. Phantom sounds."
+		case .Feral:
+			aff_name = "Feral"
+			aff_desc = "Cannot use items. Melee -20 TU. Slow HP regen."
+		case .Marked:
+			aff_name = "Marked"
+			aff_desc = "Enemy vision doubled. Whip range +1."
+		}
+		rl.DrawText(aff_name, BOX_X + 160, row, SFONT, rl.Color{200, 80, 80, 255})
+		row += SLINE
+		rl.DrawText(aff_desc, BOX_X + 10, row, SFONT, rl.Color{160, 120, 120, 255})
+	} else {
+		rl.DrawText("None", BOX_X + 160, row, SFONT, rl.Color{100, 140, 100, 255})
+	}
+
+	dismiss := fmt.ctprintf("[ s ] to close")
+	dw := rl.MeasureText(dismiss, SFONT)
+	rl.DrawText(dismiss, BOX_X + BOX_W / 2 - dw / 2, BOX_Y + BOX_H - 22, SFONT, rl.Color{80, 80, 100, 255})
 }

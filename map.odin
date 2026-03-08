@@ -310,7 +310,3 @@ generate_boss_arena :: proc(game: ^Game) {
 	// no traps, enemies, stairs etc.
 	log_messagef(game, "The air goes cold, Something ancient stirs...")
 }
-// TODO we spawn in a greenish blob area outside the map with this currently.
-// its a cool bug, but we should work on that tomorrow
-// oh and make wraiths not spawn. and remove enemy spawning. items are ok, let the rng
-// gods be with those who its with

@@ -136,47 +136,49 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 	if rl.IsKeyPressed(.SLASH) {
 		game.show_help = !game.show_help
 	}
+	if rl.IsKeyPressed(.S) {
+		game.show_stats = !game.show_stats
+	}
 
-	// Restart Game Debug feature TODO Remove or wrap in ODIN_DEBUG before releasing on the 7th
-	if rl.IsKeyPressed(.R) {
+	when ODIN_DEBUG {
+		if rl.IsKeyPressed(.R) {
+			game.treasure_room = nil
+			game.pedestal = nil
+			clear(&game.traps)
+			clear(&game.gold_piles)
+			clear(&game.items)
+			game.next_wraith_spawn = 150
+			game.wraith_count = 0
 
-		game.treasure_room = nil
-		game.pedestal = nil
-		clear(&game.traps)
-		clear(&game.gold_piles)
-		clear(&game.items)
-		game.next_wraith_spawn = 150
-		game.wraith_count = 0
-
-		for y in 0 ..< game.map_height {
-			for x in 0 ..< game.map_width {
-				game.revealed[y][x] = false
-				game.visible[y][x] = false
+			for y in 0 ..< game.map_height {
+				for x in 0 ..< game.map_width {
+					game.revealed[y][x] = false
+					game.visible[y][x] = false
+				}
 			}
+
+			resize(&game.actors, 1)
+			generate_dungeon(game)
+
+			clear(&game.scheduler.actors)
+			for &actor in game.actors {
+				schedule_actor(&game.scheduler, &actor)
+			}
+
+			center_camera(
+				&game.camera,
+				get_player(game).x,
+				get_player(game).y,
+				game.map_width,
+				game.map_height,
+			)
+
+			fov_r, lantern_r := get_fov_radii(game)
+			compute_fov(game, get_player(game).x, get_player(game).y, fov_r, lantern_r)
+
+			game.turn_count = 0
+			return
 		}
-
-		resize(&game.actors, 1) // Keep only player at index 0 ALWAYS
-
-		generate_dungeon(game)
-
-		clear(&game.scheduler.actors)
-		for &actor in game.actors {
-			schedule_actor(&game.scheduler, &actor)
-		}
-
-		center_camera(
-			&game.camera,
-			get_player(game).x,
-			get_player(game).y,
-			game.map_width,
-			game.map_height,
-		)
-
-		fov_r, lantern_r := get_fov_radii(game)
-		compute_fov(game, get_player(game).x, get_player(game).y, fov_r, lantern_r)
-
-		game.turn_count = 0
-		return
 	}
 
 	if rl.IsKeyPressed(.F11) {
@@ -342,7 +344,6 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			if result, ok := handle_input(game).?; ok { 	// .? is odins Maybe/Optional wrapper
 				player_data := get_player(game).data.(Player_Data)
 				// try to unwrap this Maybe, if there is data, run it.
-				actor.time_next += result.cost * BASE_SPEED / actor.speed
 				cost := result.cost
 				if player_data, pd_ok := &actor.data.(Player_Data);
 				   pd_ok && player_data.haste_turns > 0 {
@@ -462,6 +463,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					if pd.sanity == 0 {
 						if _, has := pd.affliction.(Sanity_Affliction); !has {
 							apply_sanity_affliction(game)
+							pd.sanity = 50
 						}
 					}
 				}
@@ -578,8 +580,9 @@ playing_draw :: proc(sm: ^State_Manager, data: rawptr) {
 		rl.DrawCircleLines(cx, cy, FLASH_R, rl.Color{255, 200, 40, 200})
 	}
 
-	// Help overlay / Debug
+	// Help / Stats overlays
 	if game.show_help {draw_help_overlay(game)}
+	if game.show_stats {draw_stats_overlay(game)}
 	when ODIN_DEBUG {
 		if draw_debug_overlay {draw_debug_info(game)}
 	}
@@ -1023,6 +1026,11 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 		if target_tile != .Wall {
 			if target := get_enemy_at(game, next_x, next_y); target != nil {
 				resolve_player_attack(game, player, target)
+				if pw2, pw_ok2 := player.data.(Player_Data); pw_ok2 {
+					if aff, aff_ok := pw2.affliction.(Sanity_Affliction); aff_ok && aff == .Feral {
+						game.last_action_cost = max(20, game.last_action_cost - 20)
+					}
+				}
 				return Action_Result{action = .Attack, cost = game.last_action_cost}
 			}
 			player.x = next_x

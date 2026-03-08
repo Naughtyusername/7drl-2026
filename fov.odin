@@ -88,6 +88,10 @@ cast_light :: proc(
 					case .Lighting:
 						tile_coord := [2]int{wx, wy}
 						if tile_coord not_in visited^ {
+							if !game.visible[wy][wx] {
+								visited^[tile_coord] = true
+								continue
+							}
 							dist := math.sqrt(f32(col * col + current_row * current_row))
 							intensity := 1.0 - dist / f32(radius)
 							dimmed := dim_color(light_color, intensity)
@@ -262,34 +266,13 @@ has_los :: proc(game: ^Game, x0, y0, x1, y1: int) -> bool {
 		e2 := 2 * err
 		if e2 > -dx {err -= dy;x += sx}
 		if e2 < dy {err += dx;y += sy}
-
-		return true
 	}
 }
 
 // Enemy light / Non player light emit
 emit_light :: proc(game: ^Game, origin_x, origin_y, radius: int, color: rl.Color) {
 	if !in_bounds(game, origin_x, origin_y) {return}
-	// light origin tile or it leaves a trailing un-lit tile behind wraiths and other light emitters
 	game.light_map[origin_y][origin_x] = add_light(game.light_map[origin_y][origin_x], color)
-	// light origin and immediate neighbors - shadowcast edge cases might still miss, but this should help
-	// fix that bug.
-	for dy in -1 ..= 1 {
-		for dx in -1 ..= 1 {
-			nx, ny := origin_x + dx, origin_y + dy
-			if in_bounds(game, nx, ny) {
-				dist := math.sqrt(f32(dx * dx + dy * dy))
-				intensity := 1.0 - dist / f32(radius)
-				game.light_map[ny][nx] = add_light(
-					game.light_map[ny][nx],
-					dim_color(color, intensity),
-				)
-				// this does stilll have some odd blob formations but it might have to stay
-				// dont have a ton of time to deal with non gameplay stuff anymore
-			}
-		}
-	}
-	// doing it this way doesnt clear the screen of player or enemy lights like my previous attempt
 	light_visited := make(map[[2]int]bool)
 	defer delete(light_visited)
 	for octant in 0 ..< 8 {

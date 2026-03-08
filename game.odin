@@ -164,9 +164,8 @@ use_item :: proc(game: ^Game, idx: int) {
 	case Potion_Data:
 		switch d.type {
 		case .Healing:
-			healed := min(10, player.max_hp - player.hp)
-			player.hp += healed
-			log_messagef(game, "The potion mends your wounds. (+%d HP)", healed)
+			player.hp = player.max_hp
+			log_messagef(game, "The potion mends your wounds. (Full HP)")
 		case .Fuel:
 			added := min(100, pd.lantern.max_fuel - pd.lantern.fuel)
 			pd.lantern.fuel += added
@@ -472,6 +471,7 @@ Game :: struct {
 	combat_log:               Message_Log,
 	debug_log:                Message_Log,
 	show_help:                bool,
+	show_stats:               bool,
 	volatile_flash_this_turn: bool,
 
 	// Debug: Track how many times each tile receives light
@@ -495,9 +495,9 @@ init_game :: proc(width, height: int) -> Game {
 	game.visible = make([dynamic][dynamic]bool, height)
 	game.light_map = make([dynamic][dynamic]rl.Color, height)
 
-	game.light_hit_count = make([dynamic][dynamic]int, game.map_height)
-	for y in 0 ..< game.map_height {
-		game.light_hit_count[y] = make([dynamic]int, game.map_width)
+	game.light_hit_count = make([dynamic][dynamic]int, height)
+	for y in 0 ..< height {
+		game.light_hit_count[y] = make([dynamic]int, width)
 	}
 
 	for i in 0 ..< height {
@@ -627,6 +627,7 @@ cleanup_game :: proc(game: ^Game) {
 
 restart_game :: proc(game: ^Game) {
 	player := get_player(game)
+	player.max_hp = 30
 	player.hp = player.max_hp
 	player.time_next = 0
 	game.map_width = 35
@@ -642,6 +643,13 @@ restart_game :: proc(game: ^Game) {
 		pd.feral_hp_tick = 0
 		pd.shadow_strike_ready = false
 		pd.sanity_tick = 0
+		pd.lantern = Lantern {
+			state    = .Lit,
+			fuel     = 300,
+			max_fuel = 300,
+		}
+		pd.active_weapon = .Whip
+		pd.boons = {}
 	}
 	game.boss_dead = false
 	game.boss_triggered = false
@@ -666,6 +674,10 @@ restart_game :: proc(game: ^Game) {
 		clear(&pd.inventory)
 	}
 
+	game.current_floor = 1
+	game.turn_count = 0
+	game.enemies_slain = 0
+
 	resize(&game.actors, 1)
 	generate_dungeon(game)
 
@@ -675,10 +687,6 @@ restart_game :: proc(game: ^Game) {
 		schedule_actor(&game.scheduler, &actor)
 	}
 
-	game.current_floor = 1
-	game.turn_count = 0
-	game.enemies_slain = 0
-	game.boss_triggered = false
 	game.show_help = true
 
 	center_camera(&game.camera, player.x, player.y, game.map_width, game.map_height)
@@ -1037,9 +1045,10 @@ grant_random_boon :: proc(game: ^Game) {
 	player := get_player(game)
 	pd := &player.data.(Player_Data)
 
-	available: [8]Player_Boon
+	pool := [4]Player_Boon{.Trap_Sight, .Fuel_Efficiency, .Quick_Hands, .Iron_Lungs}
+	available: [4]Player_Boon
 	count := 0
-	for boon in Player_Boon {
+	for boon in pool {
 		if boon not_in pd.boons {
 			available[count] = boon
 			count += 1

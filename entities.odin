@@ -22,7 +22,7 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 		// enrage threshold
 		if actor.hp <= 24 && enemy_data.boss_phase == .Active {
 			enemy_data.boss_phase = .Enraged
-			log_messagef(game, "The Vnknown SCREATCHES. It's wounds close before you...")
+			log_messagef(game, "The Vampire Lord SCREECHES. Its wounds close before you...")
 		}
 
 		enemy_data.last_known_x = player.x
@@ -247,7 +247,7 @@ spawn_enemies :: proc(game: ^Game, count: int) {
 			x = rand.int_max(game.map_width)
 			y = rand.int_max(game.map_height)
 
-			if game.tiles[y][x] == .Floor && (x != player.x || y != player.y) {
+			if game.tiles[y][x] == .Floor && max(abs(x - player.x), abs(y - player.y)) > 12 {
 				break
 			}
 		}
@@ -255,7 +255,7 @@ spawn_enemies :: proc(game: ^Game, count: int) {
 		roll := rand.float32()
 		// floor 5+
 		if game.current_floor >= 5 {
-			// deep floors: Knights, Wolves, Wraith, fodder.
+			// deeper floors: Knights, Wolves, Wraith, fodder.
 			if roll < 0.25 {
 				actor = make_skeleton_knight(len(game.actors), x, y)
 			} else if roll < 0.55 {
@@ -431,7 +431,7 @@ make_wraith :: proc(id, x, y: int) -> Actor {
 		hp = 30,
 		max_hp = 30,
 		alive = true,
-		speed = 100,
+		speed = 90,
 		data = Enemy_Data {
 			name = "Wraith",
 			char = "W",
@@ -455,11 +455,12 @@ make_boss :: proc(id, x, y: int) -> Actor {
 		alive = true, //ironic
 		speed = 110,
 		data = Enemy_Data {
-			name = "Vnknown",
+			name = "Vampire Lord",
 			char = "V",
 			color = sample_color(BOSS_COLOR),
 			damage = 8,
 			vision_range = 30,
+			light_radius = 8,
 			enemy_type = .Vampire_Lord,
 			boss_phase = .Dormant,
 			tags = {.Large, .Carries_Light, .Stealthy, .Dark_Vision, .Smell_Based},
@@ -555,9 +556,9 @@ place_player :: proc(game: ^Game) {
 
 spawn_items :: proc(game: ^Game) {
 	player := get_player(game)
-	z : int
+	z: int
 	if game.current_floor > 5 {z = 3}
-	count := 4 + rand.int_max(7+z) // trying out 10 items max.
+	count := 4 + rand.int_max(7 + z) // trying out 10 items max.
 	next_id := len(game.actors) + 1000 // avoid id collisions with actors
 
 	for i in 0 ..< count {
