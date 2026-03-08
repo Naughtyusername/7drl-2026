@@ -35,6 +35,8 @@ MAX_LANTERN_RADIUS :: 8
 MAX_FOV_RADIUS :: 12 // how far player can see when not in darkness/blinded
 BASE_SPEED :: 100 // standard TU cost baseline
 STUN_ACTION_COST :: 200 // TU burned by a stunned actor per scheduler pop (2 turns at BASE_SPEED)
+PLAYER_FONT_SIZE :: 20
+FACING_FONT_SIZE :: 16
 
 // Mutable Variants
 fov_radius: int = 10
@@ -167,7 +169,10 @@ use_item :: proc(game: ^Game, idx: int) {
 			log_messagef(game, "The potion mends your wounds. (+%d HP)", healed)
 		case .Fuel:
 			added := min(100, pd.lantern.max_fuel - pd.lantern.fuel)
-			pd.lantern.state = .Empty;{pd.lantern.state = .Lit}
+			pd.lantern.fuel += added
+			if pd.lantern.fuel > 0 && pd.lantern.state != .Lit {
+				pd.lantern.state = .Lit
+			}
 			log_messagef(game, "You refuel the lantern. (+%d)", added)
 		case .Clarity:
 			pd.clarity_turns = 10
@@ -177,9 +182,10 @@ use_item :: proc(game: ^Game, idx: int) {
 				if _, ok := a.data.(Enemy_Data); !ok || !a.alive {continue}
 				if max(abs(a.x - player.x), abs(a.y - player.y)) <= 4 {
 					a.hp -= 12
-					if a.hp <= 0 {a.alive = false;game.enemies_slain += 1}
+					if a.hp <= 0 {kill_enemy(game, &a)}
 				}
 			}
+			game.volatile_flash_this_turn = true
 			log_messagef(game, "A burst of flames erupts around you!")
 		case .Haste:
 			pd.haste_turns = 8
@@ -198,7 +204,18 @@ use_item :: proc(game: ^Game, idx: int) {
 			pd.weapon_damage_bonus += 1
 			log_messagef(game, "Your weapon glows. (+1 damage, Permanent)")
 		case .Hostile_Tracking:
-			log_messagef(game, "Your sense all enemies nearby. (TODO tomorrow)")
+			revealed_count := 0
+			for &a in game.actors {
+				e, e_ok := &a.data.(Enemy_Data)
+				if !e_ok || !a.alive {continue}
+				if game.visible[a.y][a.x] {
+					e.ai_state = .Hunting
+					e.last_known_x = get_player(game).x
+					e.last_known_y = get_player(game).y
+					revealed_count += 1
+				}
+			}
+			log_messagef(game, "Your senses flare. %d threats locked.", revealed_count)
 		case .Teleport:
 			for a := 0; a < 1000; a += 1 {
 				tx := rand.int_max(game.map_width)
@@ -293,6 +310,7 @@ Player_Data :: struct {
 	clarity_turns:       int,
 	haste_turns:         int,
 	weapon_damage_bonus: int,
+	shadow_strike_ready: bool,
 }
 
 Player_Boon :: enum {
@@ -370,7 +388,7 @@ get_weapon_stats :: proc(weapon: Weapon_Type) -> Weapon_Stats {
 	switch weapon {
 	case .Dagger:
 		return Weapon_Stats {
-			damage = 6,
+			damage = 8,
 			speed = 80,
 			max_range = 1,
 			ability_cost = 0,
@@ -378,7 +396,7 @@ get_weapon_stats :: proc(weapon: Weapon_Type) -> Weapon_Stats {
 		}
 	case .Whip:
 		return Weapon_Stats {
-			damage = 4,
+			damage = 6,
 			speed = 100,
 			max_range = 3,
 			ability_cost = 150,
@@ -414,47 +432,50 @@ Trap :: struct {
 }
 
 Game :: struct {
-	map_width:         int,
-	map_height:        int,
-	tiles:             [dynamic][dynamic]Tile,
-	revealed:          [dynamic][dynamic]bool,
-	visible:           [dynamic][dynamic]bool,
-	light_map:         [dynamic][dynamic]rl.Color,
-	actors:            [dynamic]Actor,
-	player_index:      int, // Index of player in actors array (always 0)
-	camera:            Camera,
-	turn_count:        int,
-	current_time:      int,
-	scheduler:         Scheduler,
+	map_width:                int,
+	map_height:               int,
+	tiles:                    [dynamic][dynamic]Tile,
+	revealed:                 [dynamic][dynamic]bool,
+	visible:                  [dynamic][dynamic]bool,
+	light_map:                [dynamic][dynamic]rl.Color,
+	actors:                   [dynamic]Actor,
+	player_index:             int, // Index of player in actors array (always 0)
+	camera:                   Camera,
+	turn_count:               int,
+	current_time:             int,
+	scheduler:                Scheduler,
 	// Map gen stuff
-	treasure_room:     Maybe(Rectangle),
-	pedestal:          Maybe(Boon_Pedistal),
-	gold_piles:        [dynamic]Gold_Pile,
+	treasure_room:            Maybe(Rectangle),
+	pedestal:                 Maybe(Boon_Pedistal),
+	gold_piles:               [dynamic]Gold_Pile,
 	// quitter
-	quit:              bool,
-	wants_restart:     bool,
+	quit:                     bool,
+	wants_restart:            bool,
 	// Traps
-	traps:             [dynamic]Trap,
+	traps:                    [dynamic]Trap,
 	// Items / inv
-	items:             [dynamic]Item,
+	items:                    [dynamic]Item,
 	// status
-	last_action_cost:  int,
-	current_floor:     int,
-	death_cause:       string, // "Thrall", "Wolf" - set when player dies
-	enemies_slain:     int,
-	next_wraith_spawn: int,
-	wraith_count:      int,
-	boss_triggered:    bool,
+	last_action_cost:         int,
+	current_floor:            int,
+	death_cause:              string, // "Thrall", "Wolf" - set when player dies
+	enemies_slain:            int,
+	next_wraith_spawn:        int,
+	wraith_count:             int,
+	boss_triggered:           bool,
+	boss_dead:                bool,
 	// log/debug
-	logger:            Logger,
-	debug_throttles:   map[string]Debug_Throttle,
-	crash_logger:      Logger,
-	game_log:          Message_Log,
-	combat_log:        Message_Log,
-	debug_log:         Message_Log,
+	logger:                   Logger,
+	debug_throttles:          map[string]Debug_Throttle,
+	crash_logger:             Logger,
+	game_log:                 Message_Log,
+	combat_log:               Message_Log,
+	debug_log:                Message_Log,
+	show_help:                bool,
+	volatile_flash_this_turn: bool,
 
 	// Debug: Track how many times each tile receives light
-	light_hit_count:   [dynamic][dynamic]int,
+	light_hit_count:          [dynamic][dynamic]int,
 }
 
 init_game :: proc(width, height: int) -> Game {
@@ -464,6 +485,10 @@ init_game :: proc(width, height: int) -> Game {
 	}
 
 	game.current_floor = 1
+	game.map_width = 35
+	game.map_height = 35
+
+	game.show_help = true // auto show on first launch
 
 	game.tiles = make([dynamic][dynamic]Tile, height)
 	game.revealed = make([dynamic][dynamic]bool, height)
@@ -507,9 +532,9 @@ init_game :: proc(width, height: int) -> Game {
 		id = 0,
 		x = width / 2,
 		y = height / 2,
-		hp = 20,
+		hp = 30,
 		alive = true,
-		max_hp = 20,
+		max_hp = 30,
 		time_next = 0,
 		speed = 100,
 		data = Player_Data {
@@ -604,6 +629,22 @@ restart_game :: proc(game: ^Game) {
 	player := get_player(game)
 	player.hp = player.max_hp
 	player.time_next = 0
+	game.map_width = 35
+	game.map_height = 35
+
+	if pd, ok := &player.data.(Player_Data); ok {
+		pd.sanity = 100
+		pd.affliction = nil
+		pd.weapon_damage_bonus = 0
+		pd.gold = 0
+		pd.haste_turns = 0
+		pd.clarity_turns = 0
+		pd.feral_hp_tick = 0
+		pd.shadow_strike_ready = false
+		pd.sanity_tick = 0
+	}
+	game.boss_dead = false
+	game.boss_triggered = false
 
 	for y in 0 ..< game.map_height {
 		for x in 0 ..< game.map_width {
@@ -638,6 +679,7 @@ restart_game :: proc(game: ^Game) {
 	game.turn_count = 0
 	game.enemies_slain = 0
 	game.boss_triggered = false
+	game.show_help = true
 
 	center_camera(&game.camera, player.x, player.y, game.map_width, game.map_height)
 	fov_r, lantern_r := get_fov_radii(game)
@@ -888,14 +930,21 @@ descend_floor :: proc(game: ^Game) {
 	game.current_floor += 1
 
 	// Free old map data (rows only - outer arrays stay allocated)
-	for y in 0 ..< game.map_height {
-		// Rest to defaults instead of free+realloc
-		for x in 0 ..< game.map_width {
+	for y in 0 ..< MAP_HEIGHT {
+		for x in 0 ..< MAP_WIDTH {
 			game.tiles[y][x] = .Floor
 			game.revealed[y][x] = false
 			game.visible[y][x] = false
 			game.light_map[y][x] = LIGHT_NONE
 		}
+	}
+	// smaller early floors since i cut so much content the game is boring.
+	if game.current_floor <= 3 {
+		game.map_width = 35
+		game.map_height = 35
+	} else {
+		game.map_width = MAP_WIDTH
+		game.map_height = MAP_HEIGHT
 	}
 
 	// keep only the player
@@ -907,7 +956,7 @@ descend_floor :: proc(game: ^Game) {
 	clear(&game.traps)
 	clear(&game.gold_piles)
 	clear(&game.items)
-	game.next_wraith_spawn = 150
+	game.next_wraith_spawn = game.turn_count + 150
 	game.wraith_count = 0
 
 	// Generate new floor
@@ -915,6 +964,10 @@ descend_floor :: proc(game: ^Game) {
 
 	scale_enemies(game)
 
+	// Oops forgot to do this and got murdered by a billion attacks per turn -- fix in main game too
+	get_player(game).time_next = 0
+	game.current_time = 0
+	game.scheduler.current_time = 0
 	// Rebuild scheduler
 	clear(&game.scheduler.actors)
 	for &actor in game.actors {
@@ -956,7 +1009,7 @@ ascend_floor :: proc(game: ^Game) {
 	clear(&game.traps)
 	clear(&game.gold_piles)
 	clear(&game.items)
-	game.next_wraith_spawn = 150
+	game.next_wraith_spawn = game.turn_count + 150
 	game.wraith_count = 0
 
 	// Generate new floor
@@ -1049,10 +1102,11 @@ start_boss_fight :: proc(game: ^Game) {
 	boss := make_boss(len(game.actors), cx, cy)
 	append(&game.actors, boss)
 	// activate it - set phase to active and schedule it
-	if ed := &game.actors[len(game.actors)-1].data.(Enemy_Data); ed != nil {
+	if ed := &game.actors[len(game.actors) - 1].data.(Enemy_Data); ed != nil {
 		ed.boss_phase = .Active
 	}
-	schedule_actor(&game.scheduler, &game.actors[len(game.actors)-1])
+	game.actors[len(game.actors) - 1].time_next = game.current_time
+	schedule_actor(&game.scheduler, &game.actors[len(game.actors) - 1])
 
 	log_messagef(game, "The sarcopagus crack open. Run.")
 }

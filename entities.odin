@@ -22,7 +22,7 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 		// enrage threshold
 		if actor.hp <= 24 && enemy_data.boss_phase == .Active {
 			enemy_data.boss_phase = .Enraged
-			log_messagef(game, "The Vunknown SCREATCHES. It's wounds close before you...")
+			log_messagef(game, "The Vnknown SCREATCHES. It's wounds close before you...")
 		}
 
 		enemy_data.last_known_x = player.x
@@ -47,9 +47,20 @@ update_enemy :: proc(game: ^Game, actor: ^Actor) -> Action {
 			for _ in 0 ..< 2 {
 				pest := make_lantern_pest(len(game.actors), old_x, old_y)
 				append(&game.actors, pest)
+				game.actors[len(game.actors) - 1].time_next = game.current_time
 				schedule_actor(&game.scheduler, &game.actors[len(game.actors) - 1])
 			}
-			log_messagef(game, "The Vunknown vanishes!")
+			log_messagef(game, "The Vnknown vanishes!")
+		}
+
+		// Pest hunt to extinguish, flee when done
+		if enemy_data.enemy_type == .Lantern_Pest {
+			pd := player.data.(Player_Data)
+			if pd.lantern.state != .Lit {
+				enemy_data.ai_state = .Fleeing
+			} else if enemy_data.ai_state == .Fleeing {
+				enemy_data.ai_state = .Hunting
+			}
 		}
 
 		// enraged bump speed
@@ -280,7 +291,7 @@ spawn_enemies :: proc(game: ^Game, count: int) {
 }
 
 scale_enemies :: proc(game: ^Game) {
-	scale := 1.0 + f32(game.current_floor - 1) * 0.1
+	scale := 1.0 + f32(game.current_floor - 1) * 0.07
 	for &actor in game.actors {
 		ed, ok := &actor.data.(Enemy_Data)
 		if !ok {continue}
@@ -321,7 +332,7 @@ make_thrall :: proc(id, x, y: int) -> Actor {
 			name = "Thrall",
 			char = "t",
 			color = sample_color(THRALL_COLOR),
-			damage = 3,
+			damage = 1,
 			enemy_type = .Thrall,
 			vision_range = 8,
 			light_radius = 8,
@@ -335,15 +346,15 @@ make_wolf :: proc(id, x, y: int) -> Actor {
 		id = id,
 		x = x,
 		y = y,
-		hp = 12,
-		max_hp = 12,
+		hp = 8,
+		max_hp = 8,
 		alive = true,
 		speed = 120,
 		data = Enemy_Data {
 			name = "Wolf",
 			char = "w",
 			color = sample_color(WOLF_COLOR),
-			damage = 5,
+			damage = 2,
 			enemy_type = .Wolf,
 			vision_range = 6,
 			tags = {.Large, .Dark_Vision},
@@ -383,7 +394,7 @@ make_shade :: proc(id, x, y: int) -> Actor {
 			name = "Shade",
 			char = "s",
 			color = sample_color(SHADE_COLOR),
-			damage = 6,
+			damage = 4,
 			enemy_type = .Shade,
 			vision_range = 12,
 			tags = {.Dark_Vision, .Stealthy},
@@ -404,9 +415,9 @@ make_skeleton_knight :: proc(id, x, y: int) -> Actor {
 			name = "Skeleton Knight",
 			char = "K",
 			color = sample_color(SKELETON_KNIGHT_COLOR),
-			damage = 7,
-			vision_range = 7,
-			light_radius = 3,
+			damage = 5,
+			vision_range = 6,
+			light_radius = 6,
 			tags = {},
 		},
 	}
@@ -444,13 +455,14 @@ make_boss :: proc(id, x, y: int) -> Actor {
 		alive = true, //ironic
 		speed = 110,
 		data = Enemy_Data {
-			name = "Vunknown",
+			name = "Vnknown",
 			char = "V",
 			color = sample_color(BOSS_COLOR),
-			damage = 10,
+			damage = 8,
 			vision_range = 30,
 			enemy_type = .Vampire_Lord,
 			boss_phase = .Dormant,
+			tags = {.Large, .Carries_Light, .Stealthy, .Dark_Vision, .Smell_Based},
 		},
 	}
 }
@@ -481,12 +493,19 @@ check_trap :: proc(game: ^Game, actor: ^Actor) {
 				actor.stunned_turns = 2
 			}
 		case .Alarm:
-			// This may be a bit too aggressive haha TODO
+			ALARM_RADIUS :: 8
+			ALARM_MAX :: 5
+			alerted := 0
 			for &a in game.actors {
-				if e, ok := &a.data.(Enemy_Data); ok {
+				if alerted >= ALARM_MAX {break}
+				e, ok := &a.data.(Enemy_Data)
+				if !ok || !a.alive {continue}
+				dist := max(abs(a.x - trap.x), abs(a.y - trap.y))
+				if dist <= ALARM_RADIUS {
 					e.ai_state = .Hunting
 					e.last_known_x = trap.x
 					e.last_known_y = trap.y
+					alerted += 1
 				}
 			}
 			log_messagef(game, "A shrill alarm sounds!")
@@ -536,7 +555,9 @@ place_player :: proc(game: ^Game) {
 
 spawn_items :: proc(game: ^Game) {
 	player := get_player(game)
-	count := 2 + rand.int_max(3) // 2-4 items per floor to start
+	z : int
+	if game.current_floor > 5 {z = 3}
+	count := 4 + rand.int_max(7+z) // trying out 10 items max.
 	next_id := len(game.actors) + 1000 // avoid id collisions with actors
 
 	for i in 0 ..< count {

@@ -88,6 +88,7 @@ KNIGHT_COLOR :: Color_Range{190, 200, 220, 5, 5, 8, 4, false} // pale bone-blue
 WRAITH_COLOR :: Color_Range{192, 1, 181, 20, 0, 15, 12, true} // pulsing
 //  magenta, dances
 BOSS_COLOR :: Color_Range{120, 0, 20, 15, 0, 5, 8, true} // deep blood,
+BOSS_LIGHT :: Color_Range{90, 10, 10, 20, 5, 5, 8, true}
 
 // ===== STANDARD & DEFAULT COLORS =====
 LIGHT_NONE :: rl.Color{0, 0, 0, 255} // Darkness

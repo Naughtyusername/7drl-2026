@@ -106,20 +106,47 @@ draw_map :: proc(game: ^Game) {
 	}
 }
 
+facing_indicator :: proc(dx, dy: int) -> (char: cstring) {
+	switch {
+	case dx == 0 && dy == -1:
+		return "^"
+	case dx == 0 && dy == 1:
+		return "v"
+	case dx == -1 && dy == 0:
+		return "<"
+	case dx == 1 && dy == 0:
+		return ">"
+	case dx == -1 && dy == -1:
+		return "\\"
+	case dx == 1 && dy == -1:
+		return "/"
+	case dx == -1 && dy == 1:
+		return "/"
+	case dx == 1 && dy == 1:
+		return "\\"
+	}
+	return nil
+}
+
 draw_player :: proc(game: ^Game) {
 	player := get_player(game)
 	screen_x, screen_y, visible := world_to_screen(game.camera, player.x, player.y)
+	if !visible {return}
 
-	if visible {
-		if data, ok := player.data.(Player_Data); ok {
-			rl.DrawText(
-				"@",
-				i32(screen_x * TILE_SIZE + 4),
-				i32(screen_y * TILE_SIZE + MAP_AREA_Y + 2),
-				20,
-				data.color,
-			)
-		}
+	data, data_ok := player.data.(Player_Data)
+	if !data_ok {return}
+
+	base_x := i32(screen_x * TILE_SIZE)
+	base_y := i32(screen_y * TILE_SIZE + MAP_AREA_Y)
+
+	rl.DrawText("@", base_x + 4, base_y + 2, PLAYER_FONT_SIZE, data.color)
+
+	fchar := facing_indicator(data.last_dx, data.last_dy)
+	if fchar != nil {
+		FACING_COLOR :: rl.Color{180, 180, 255, 200}
+		fx := i32(screen_x + data.last_dx) * TILE_SIZE
+		fy := i32(screen_y + data.last_dy) * TILE_SIZE + i32(MAP_AREA_Y)
+		rl.DrawText(fchar, fx + 4, fy + 2, FACING_FONT_SIZE, FACING_COLOR)
 	}
 }
 
@@ -175,8 +202,17 @@ should_draw_enemy :: proc(game: ^Game, actor: ^Actor) -> (draw: bool, dimmed: bo
 	}
 
 	// dark tile but in FOV ()
+	//if .Carries_Light in enemy_data.tags {return true, false}
+	//if .Large in enemy_data.tags {return true, true}
+	// old, this was a fun idea but i couldnt make it work in the timeframe.
+
+	dist := max(abs(actor.x - player.x), abs(actor.y - player.y))
+	if .Stealthy not_in enemy_data.tags && dist <= NEAR_REVEAL_RADIUS {
+		return true, true // dimmed — close enough to sense even in darkness
+	}
 	if .Carries_Light in enemy_data.tags {return true, false}
 	if .Large in enemy_data.tags {return true, true}
+
 	return false, false
 }
 
@@ -397,6 +433,10 @@ draw_hud :: proc(game: ^Game) {
 	// === Line 1: player status ===
 	rl.DrawText("@", 10, y1, FONT_SIZE, sample_color(PLAYER))
 
+	// Player Speed
+	rl.DrawText(fmt.ctprintf("[Movement:%d]", player.speed), 28, y1, FONT_SIZE, rl.YELLOW)
+
+	// HP
 	rl.DrawText(
 		fmt.ctprintf("HP:%d/%d", player.hp, player.max_hp),
 		140,
@@ -405,6 +445,7 @@ draw_hud :: proc(game: ^Game) {
 		get_resource_color(player.hp, player.max_hp),
 	)
 
+	// Fuel
 	rl.DrawText(
 		fmt.ctprintf("Fuel:%d/%d", player_data.lantern.fuel, player_data.lantern.max_fuel),
 		260,
@@ -413,9 +454,12 @@ draw_hud :: proc(game: ^Game) {
 		get_resource_color(player_data.lantern.fuel, player_data.lantern.max_fuel),
 	)
 
+	// Sanity
 	san_color := get_resource_color(player_data.sanity, 100)
 	if player_data.sanity <= 30 {san_color = SANITY_LOW_COLOR}
 	rl.DrawText(fmt.ctprintf("San:%d%%", player_data.sanity), 460, y1, FONT_SIZE, san_color)
+
+	// Weps
 	base_name: cstring
 	switch player_data.active_weapon {
 	case .Dagger:
@@ -423,7 +467,14 @@ draw_hud :: proc(game: ^Game) {
 	case .Whip:
 		base_name = "Whip"
 	}
-	rl.DrawText(fmt.ctprintf("Wep[%s]", base_name), 560, y1, FONT_SIZE, rl.WHITE)
+	stats := get_weapon_stats(player_data.active_weapon)
+	atk_speed := stats.speed
+	wep_color := rl.WHITE
+	if player_data.haste_turns > 0 {
+		atk_speed /= 2
+	}
+	if player_data.haste_turns > 0 {wep_color = rl.Color{100, 220, 255, 255}}
+	rl.DrawText(fmt.ctprintf("%s[atk:%d]", base_name, atk_speed), 560, y1, FONT_SIZE, wep_color)
 
 	// === Line 2: game state ===
 	// floor
@@ -556,4 +607,57 @@ draw_items :: proc(game: ^Game) {
 			sample_color(color),
 		)
 	}
+}
+
+draw_help_overlay :: proc(game: ^Game) {
+	BOX_W :: i32(500)
+	BOX_H :: i32(300)
+	BOX_X :: (i32(SCREEN_W) - BOX_W) / 2
+	BOX_Y :: (i32(SCREEN_H) - BOX_H) / 2
+	HELP_FONT :: i32(14)
+	LINE_H :: i32(18)
+
+	rl.DrawRectangle(BOX_X, BOX_Y, BOX_W, BOX_H, rl.Color{0, 8, 20, 230})
+	rl.DrawRectangleLinesEx(
+		rl.Rectangle{f32(BOX_X), f32(BOX_Y), f32(BOX_W), f32(BOX_H)},
+		1,
+		rl.Color{60, 90, 140, 255},
+	)
+	rl.DrawText("[ CONTROLS ]", BOX_X + 10, BOX_Y + 8, HELP_FONT + 2, rl.WHITE)
+	rl.DrawLine(BOX_X, BOX_Y + 26, BOX_X + BOX_W, BOX_Y + 26, rl.Color{60, 90, 140, 255})
+
+	COL1 :: i32(10)
+	COL2 :: i32(260)
+	row := BOX_Y + i32(34)
+
+	lines := [][2]cstring {
+		{"hjkl / arrows / numpad", "Move"},
+		{"yubn / numpad diag", "Diagonal move"},
+		{"bump enemy", "Attack"},
+		{". (period)", "Wait a turn"},
+		{"shift+.", "Descend stairs"},
+		{"tab", "Swap weapon"},
+		{"a (whip equipped)", "Whip trip (facing dir)"},
+		{"shift+k", "Kick"},
+		{"i", "Inventory"},
+		{"shift+l", "Toggle lantern"},
+		{"/ or ?", "Toggle this help"},
+		{"p / esc", "Pause menu"},
+	}
+
+	for line in lines {
+		rl.DrawText(line[0], BOX_X + COL1, row, HELP_FONT, rl.Color{160, 200, 255, 255})
+		rl.DrawText(line[1], BOX_X + COL2, row, HELP_FONT, rl.Color{200, 200, 200, 255})
+		row += LINE_H
+	}
+
+	dismiss := fmt.ctprintf("[ / ] to close")
+	dw := rl.MeasureText(dismiss, HELP_FONT)
+	rl.DrawText(
+		dismiss,
+		BOX_X + BOX_W / 2 - dw / 2,
+		BOX_Y + BOX_H - 22,
+		HELP_FONT,
+		rl.Color{80, 80, 100, 255},
+	)
 }

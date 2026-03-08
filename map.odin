@@ -143,8 +143,11 @@ generate_dungeon :: proc(game: ^Game) {
 
 	// map placement
 	place_stairs(game)
-	enemy_count := 6 + game.current_floor * 2 // 8 on floor 1, 26 on floor 10
-	spawn_enemies(game, enemy_count)
+	// stop enemies from spawning on boss floor
+	if game.current_floor < 10 {
+		enemy_count := 6 + game.current_floor * 2
+		spawn_enemies(game, enemy_count)
+	}
 	place_traps(game)
 	spawn_gold_piles(game)
 	spawn_items(game)
@@ -292,13 +295,17 @@ generate_boss_arena :: proc(game: ^Game) {
 	cx := game.map_width / 2
 	cy := game.map_height / 2
 	game.tiles[cy][cx] = .Floor // floor so we can touch it and not add a new tile, this works so far.
-	game.pedestal = Boon_Pedistal{x = cx, y = cy, active = true}
+	game.pedestal = Boon_Pedistal {
+		x      = cx,
+		y      = cy,
+		active = true,
+	}
 	game.treasure_room = nil
 
 	// place player at left edge of arena
 	player := get_player(game)
 	player.x = ARENA_MARGIN + 2
-	player.y= ARENA_MARGIN / 2
+	player.y = ARENA_MARGIN / 2
 
 	// no traps, enemies, stairs etc.
 	log_messagef(game, "The air goes cold, Something ancient stirs...")

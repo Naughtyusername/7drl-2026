@@ -109,6 +109,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 	state := (^Playing_State)(data)
 	game := state.game_ptr
 
+	game.volatile_flash_this_turn = false
 	if game.wants_restart {
 		game.wants_restart = false
 		restart_game(game)
@@ -132,15 +133,27 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 		return
 	}
 
+	if rl.IsKeyPressed(.SLASH) {
+		game.show_help = !game.show_help
+	}
+
 	// Restart Game Debug feature TODO Remove or wrap in ODIN_DEBUG before releasing on the 7th
 	if rl.IsKeyPressed(.R) {
+
+		game.treasure_room = nil
+		game.pedestal = nil
+		clear(&game.traps)
+		clear(&game.gold_piles)
+		clear(&game.items)
+		game.next_wraith_spawn = 150
+		game.wraith_count = 0
+
 		for y in 0 ..< game.map_height {
 			for x in 0 ..< game.map_width {
 				game.revealed[y][x] = false
 				game.visible[y][x] = false
 			}
 		}
-
 
 		resize(&game.actors, 1) // Keep only player at index 0 ALWAYS
 
@@ -255,6 +268,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 			}
 			wraith := make_wraith(len(game.actors), wx, wy)
 			append(&game.actors, wraith)
+			game.actors[len(game.actors) - 1].time_next = game.current_time
 			schedule_actor(&game.scheduler, &game.actors[len(game.actors) - 1])
 			game.wraith_count += 1
 			log_messagef(game, "[DEBUG] Wraith spawned.")
@@ -262,6 +276,24 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 	}
 
 	player_acted := false
+
+	// Boss kill check
+	if game.boss_dead {
+		game.boss_dead = false
+		win_data := new(Win_State)
+		win_data.game_ptr = game
+		push_state(
+			sm,
+			Game_State {
+				data = win_data,
+				update = win_update,
+				draw = win_draw,
+				kill = win_kill,
+				is_transparent = true,
+			},
+		)
+		return
+	}
 
 	for !player_acted {
 		actor := pop_next_actor(&game.scheduler)
@@ -292,13 +324,14 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 						lc = sample_color(THRALL_LIGHT)
 					case .Wraith:
 						lc = sample_color(WRAITH_LIGHT)
-					case:
-						lc = rl.WHITE
 					case .Wolf:
 					case .Shade:
 					case .Lantern_Pest:
 					case .Skeleton_Knight:
 					case .Vampire_Lord:
+						lc = sample_color(BOSS_LIGHT)
+					case:
+						lc = rl.WHITE
 					}
 					emit_light(game, ea.x, ea.y, ed.light_radius, lc)
 				}
@@ -345,13 +378,19 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					if .Carries_Light not_in ed.tags {continue}
 					if ed.light_radius <= 0 {continue}
 					lc: rl.Color
-					#partial switch ed.enemy_type {
+					switch ed.enemy_type {
 					case .Thrall:
 						lc = sample_color(THRALL_LIGHT)
 					case .Wraith:
 						lc = sample_color(WRAITH_LIGHT)
 					case:
 						lc = rl.WHITE
+					case .Wolf:
+					case .Shade:
+					case .Lantern_Pest:
+					case .Skeleton_Knight:
+					case .Vampire_Lord:
+						lc = sample_color(BOSS_LIGHT)
 					}
 					emit_light(game, ea.x, ea.y, ed.light_radius, lc)
 				}
@@ -381,15 +420,14 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					pd.sanity_tick += 1
 					#partial switch pd.lantern.state {
 					case .Empty:
-						pd.sanity = max(0, pd.sanity - 1)
-					case .Extinguished:
 						if pd.sanity_tick % 2 == 0 {
-							pd.sanity = max(0, pd.sanity - 1)
+							pd.sanity = max(0, pd.sanity - 2)
 						}
+					case .Extinguished:
+						pd.sanity = max(0, pd.sanity - 1)
 					case .Lit:
-						// starting with 10 turns per sanity regen, scale from there (clamp to 100 in here since i didnt do it elsewhere...TODO maybe do that since other things will drain sanity.)
-						if pd.sanity_tick % 10 == 0 && pd.sanity <= 99 {
-							pd.sanity = max(0, pd.sanity + 1)
+						if pd.sanity_tick % 25 == 0 {
+							pd.sanity = max(0, pd.sanity - 1)
 						}
 					}
 					// Wraith Sanity drain -- TODO Boss will be similar to this wehn implemented
@@ -411,7 +449,10 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 							e, e_ok := other.data.(Enemy_Data)
 							if !e_ok || !other.alive || e.enemy_type != .Vampire_Lord {continue}
 							if e.boss_phase == .Dormant {continue}
-							dist := max(abs(other.x - get_player(game).x), abs(other.y - get_player(game).y))
+							dist := max(
+								abs(other.x - get_player(game).x),
+								abs(other.y - get_player(game).y),
+							)
 							if dist <= 8 {
 								pd.sanity = max(0, pd.sanity - 1)
 							}
@@ -426,11 +467,14 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				}
 
 
+				// wraith consts
 				WRAITH_SPAWN_INTERVAL_BASE :: 150
 				WRAITH_SPAWN_INTERVAL_MIN :: 80
 
 				// wraith spawn checker
-				if game.current_floor >= 2 && game.turn_count >= game.next_wraith_spawn {
+				if game.current_floor >= 2 &&
+				   game.current_floor < 10 &&
+				   game.turn_count >= game.next_wraith_spawn {
 					player := get_player(game)
 					// spawn away from player
 					spawn_x, spawn_y := player.x, player.y
@@ -448,6 +492,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 					}
 					wraith := make_wraith(len(game.actors), spawn_x, spawn_y)
 					append(&game.actors, wraith)
+					game.actors[len(game.actors) - 1].time_next = game.current_time
 					schedule_actor(&game.scheduler, &game.actors[len(game.actors) - 1])
 					game.wraith_count += 1
 					// Each successive wraith comes faster, floor depth also tightens interval
@@ -500,6 +545,7 @@ playing_update :: proc(sm: ^State_Manager, data: rawptr) {
 				)
 				break
 			}
+
 			action_cost := get_action_cost(ai_action)
 			actor.time_next += action_cost * BASE_SPEED / actor.speed
 			game.current_time = actor.time_next
@@ -521,6 +567,19 @@ playing_draw :: proc(sm: ^State_Manager, data: rawptr) {
 	draw_enemies(game)
 	draw_player(game)
 	draw_hud(game) // bottom bar ui/hud
+
+	if game.volatile_flash_this_turn {
+		player := get_player(game)
+		sx, sy, _ := world_to_screen(game.camera, player.x, player.y)
+		cx := i32(sx * TILE_SIZE + TILE_SIZE / 2)
+		cy := i32(sy * TILE_SIZE + TILE_SIZE / 2) + MAP_AREA_Y
+		FLASH_R :: f32(4 * TILE_SIZE + TILE_SIZE / 2)
+		rl.DrawCircle(cx, cy, FLASH_R, rl.Color{255, 140, 0, 60})
+		rl.DrawCircleLines(cx, cy, FLASH_R, rl.Color{255, 200, 40, 200})
+	}
+
+	// Help overlay / Debug
+	if game.show_help {draw_help_overlay(game)}
 	when ODIN_DEBUG {
 		if draw_debug_overlay {draw_debug_info(game)}
 	}
@@ -846,14 +905,31 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 	// Whip (A)bility
 	if rl.IsKeyPressed(.A) {
 		pd := player.data.(Player_Data)
+		if pd.active_weapon == .Dagger {
+			tile_lit := !is_dark(game.light_map[player.y][player.x])
+			if tile_lit {
+				log_messagef(game, "You must be in darkness to shadow strike.")
+				return nil
+			}
+			if pd_ptr, ok := &player.data.(Player_Data); ok {
+				pd_ptr.shadow_strike_ready = true
+			}
+			log_messagef(game, "You coil in the dark. [Shadow Strike ready]")
+			return Action_Result{action = .Wait, cost = BASE_SPEED / 2}
+		}
+
 		if pd.active_weapon != .Whip {
 			log_messagef(game, "Nothing to activate.")
 			return nil
 		}
 		// Scan in facing dir for a target to trip
+		whip_range := 3
+		if aff, aff_ok := pd.affliction.(Sanity_Affliction); aff_ok && aff == .Marked {
+			whip_range = 4
+		}
 		dx := pd.last_dx
 		dy := pd.last_dy
-		for dist in 1 ..= 3 {
+		for dist in 1 ..= whip_range {
 			check_x := player.x + dx * dist
 			check_y := player.y + dy * dist
 
@@ -921,10 +997,14 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 		}
 
 		pw := player.data.(Player_Data)
+		whip_range := 3
+		if aff, aff_ok := pw.affliction.(Sanity_Affliction); aff_ok && aff == .Marked {
+			whip_range = 4
+		}
 		if pw.active_weapon == .Whip {
 			dx := next_x - player.x
 			dy := next_y - player.y
-			for dist in 1 ..= 3 {
+			for dist in 1 ..= whip_range {
 				check_x := player.x + dx * dist
 				check_y := player.y + dy * dist
 
@@ -961,4 +1041,61 @@ handle_input :: proc(game: ^Game) -> Maybe(Action_Result) {
 	}
 
 	return nil
+}
+
+Win_State :: struct {
+	game_ptr: ^Game,
+}
+
+win_update :: proc(sm: ^State_Manager, data: rawptr) {
+	state := (^Win_State)(data)
+	if rl.GetKeyPressed() != .KEY_NULL {
+		state.game_ptr.wants_restart = true
+		pop_state(sm)
+	}
+}
+
+win_draw :: proc(sm: ^State_Manager, data: rawptr) {
+	state := (^Win_State)(data)
+	game := state.game_ptr
+
+	rl.DrawRectangle(0, 0, SCREEN_W, SCREEN_H, rl.Color{0, 0, 0, 180})
+
+	cx := SCREEN_W / 2
+	cy := SCREEN_H / 2
+
+	title := fmt.ctprintf("The Vampire Lord is slain.")
+	tw := rl.MeasureText(title, 28)
+	rl.DrawText(title, i32(cx) - tw / 2, i32(cy) - 60, 28, rl.Color{200, 170, 40, 255})
+
+	sub := fmt.ctprintf("You escaped the dark.")
+	sw := rl.MeasureText(sub, 20)
+	rl.DrawText(sub, i32(cx) - sw / 2, i32(cy) - 24, 20, rl.Color{150, 200, 150, 255})
+
+	kills_text := fmt.ctprintf("Enemies slain: %d", game.enemies_slain)
+	kw := rl.MeasureText(kills_text, 16)
+	rl.DrawText(kills_text, i32(cx) - kw / 2, i32(cy) + 20, 16, rl.Color{120, 120, 130, 255})
+
+	turns_text := fmt.ctprintf("Turns survived: %d", game.turn_count)
+	tnw := rl.MeasureText(turns_text, 16)
+	rl.DrawText(turns_text, i32(cx) - tnw / 2, i32(cy) + 42, 16, rl.Color{120, 120, 130, 255})
+
+	pd := get_player(game).data.(Player_Data)
+	score := pd.gold + game.enemies_slain * 10 + game.current_floor * 50
+
+	gold_text := fmt.ctprintf("Gold collected: %d", pd.gold)
+	gw := rl.MeasureText(gold_text, 16)
+	rl.DrawText(gold_text, i32(cx) - gw / 2, i32(cy) + 64, 16, rl.Color{200, 170, 40, 255})
+
+	score_text := fmt.ctprintf("Score: %d", score)
+	scw := rl.MeasureText(score_text, 22)
+	rl.DrawText(score_text, i32(cx) - scw / 2, i32(cy) + 90, 22, rl.Color{220, 220, 100, 255})
+
+	prompt := fmt.ctprintf("-- Press any key to exit --")
+	pw := rl.MeasureText(prompt, 14)
+	rl.DrawText(prompt, i32(cx) - pw / 2, i32(cy) + 100, 14, rl.Color{70, 70, 80, 255})
+}
+
+win_kill :: proc(sm: ^State_Manager, data: rawptr) {
+	free((^Win_State)(data))
 }
