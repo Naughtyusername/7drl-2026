@@ -15,7 +15,7 @@ jobs:
         run: |
           ODIN_VER=$(gh release list --repo odin-lang/Odin --limit 1 --json tagName --jq '.[0].tagName')
           wget -q "https://github.com/odin-lang/Odin/releases/download/${ODIN_VER}/odin-linux-amd64-${ODIN_VER}.tar.gz"
-          mkdir odin && tar -xzf "odin-linux-amd64-${ODIN_VER}.tar.gz" -C odin
+          mkdir odin && tar -xzf "odin-linux-amd64-${ODIN_VER}.tar.gz" --strip-components=1 -C odin
           echo "$GITHUB_WORKSPACE/odin" >> $GITHUB_PATH
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,7 +43,7 @@ jobs:
           sudo apt-get install -y mingw-w64
           ODIN_VER=$(gh release list --repo odin-lang/Odin --limit 1 --json tagName --jq '.[0].tagName')
           wget -q "https://github.com/odin-lang/Odin/releases/download/${ODIN_VER}/odin-linux-amd64-${ODIN_VER}.tar.gz"
-          mkdir odin && tar -xzf "odin-linux-amd64-${ODIN_VER}.tar.gz" -C odin
+          mkdir odin && tar -xzf "odin-linux-amd64-${ODIN_VER}.tar.gz" --strip-components=1 -C odin
           echo "$GITHUB_WORKSPACE/odin" >> $GITHUB_PATH
         env:
           GH_TOKEN: ${{ github.token }}
@@ -69,7 +69,7 @@ jobs:
         run: |
           ODIN_VER=$(gh release list --repo odin-lang/Odin --limit 1 --json tagName --jq '.[0].tagName')
           wget -q "https://github.com/odin-lang/Odin/releases/download/${ODIN_VER}/odin-macos-arm64-${ODIN_VER}.tar.gz"
-          mkdir odin && tar -xzf "odin-macos-arm64-${ODIN_VER}.tar.gz" -C odin
+          mkdir odin && tar -xzf "odin-macos-arm64-${ODIN_VER}.tar.gz" --strip-components=1 -C odin
           echo "$GITHUB_WORKSPACE/odin" >> $GITHUB_PATH
         env:
           GH_TOKEN: ${{ github.token }}
