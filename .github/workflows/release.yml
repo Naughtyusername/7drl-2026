@@ -34,16 +34,19 @@ jobs:
           path: sdrl-linux-x64-${{ github.ref_name }}.tar.gz
 
   build-windows:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Odin + MinGW
+      - name: Install Odin
         run: |
-          sudo apt-get install -y mingw-w64
           ODIN_VER=$(gh release list --repo odin-lang/Odin --limit 1 --json tagName --jq '.[0].tagName')
-          wget -q "https://github.com/odin-lang/Odin/releases/download/${ODIN_VER}/odin-linux-amd64-${ODIN_VER}.tar.gz"
-          mkdir odin && tar -xzf "odin-linux-amd64-${ODIN_VER}.tar.gz" --strip-components=1 -C odin
+          curl -sLO "https://github.com/odin-lang/Odin/releases/download/${ODIN_VER}/odin-windows-amd64-${ODIN_VER}.zip"
+          unzip -q "odin-windows-amd64-${ODIN_VER}.zip"
+          mv odin-windows-amd64-* odin
           echo "$GITHUB_WORKSPACE/odin" >> $GITHUB_PATH
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,7 +56,7 @@ jobs:
           mkdir -p dist/windows
           odin build . -out:dist/windows/sdrl.exe -target:windows_amd64 -o:speed -no-bounds-check
           cp README.md dist/windows/ 2>/dev/null || true
-          (cd dist/windows && zip -r ../../sdrl-windows-x64-${{ github.ref_name }}.zip .)
+          (cd dist/windows && 7z a -tzip ../../sdrl-windows-x64-${{ github.ref_name }}.zip .)
 
       - uses: actions/upload-artifact@v4
         with:
@@ -77,15 +80,18 @@ jobs:
       - name: Build macOS
         run: |
           mkdir -p dist/macos
-          odin build . -out:dist/macos/sdrl -target:darwin_arm64 -o:speed -no-bounds-check
+          odin build . -out:dist/macos/sdrl_arm64 -target:darwin_arm64 -o:speed -no-bounds-check
+          odin build . -out:dist/macos/sdrl_amd64 -target:darwin_amd64 -o:speed -no-bounds-check
+          lipo -create -output dist/macos/sdrl dist/macos/sdrl_arm64 dist/macos/sdrl_amd64
+          rm dist/macos/sdrl_arm64 dist/macos/sdrl_amd64
           chmod +x dist/macos/sdrl
           cp README.md dist/macos/ 2>/dev/null || true
-          tar -czf sdrl-macos-arm64-${{ github.ref_name }}.tar.gz -C dist/macos .
+          tar -czf sdrl-macos-universal-${{ github.ref_name }}.tar.gz -C dist/macos .
 
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: sdrl-macos-arm64-${{ github.ref_name }}.tar.gz
+          path: sdrl-macos-universal-${{ github.ref_name }}.tar.gz
 
   release:
     needs: [build-linux, build-windows, build-macos]
@@ -103,5 +109,5 @@ jobs:
           files: |
             sdrl-linux-x64-${{ github.ref_name }}.tar.gz
             sdrl-windows-x64-${{ github.ref_name }}.zip
-            sdrl-macos-arm64-${{ github.ref_name }}.tar.gz
+            sdrl-macos-universal-${{ github.ref_name }}.tar.gz
           generate_release_notes: true
